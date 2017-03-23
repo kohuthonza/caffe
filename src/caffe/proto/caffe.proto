@@ -398,6 +398,7 @@ message LayerParameter {
   optional ReshapeParameter reshape_param = 133;
   optional ScaleParameter scale_param = 142;
   optional SigmoidParameter sigmoid_param = 124;
+  optional SignumParametr signum_param = 147;
   optional SoftmaxParameter softmax_param = 125;
   optional SPPParameter spp_param = 132;
   optional SliceParameter slice_param = 126;
@@ -1107,6 +1108,15 @@ message SigmoidParameter {
   optional Engine engine = 1 [default = DEFAULT];
 }
 
+message SignumParameter {
+  enum Engine {
+    DEFAULT = 0;
+    CAFFE = 1;
+    CUDNN = 2;
+  }
+  optional Engine engine = 1 [default = DEFAULT];
+}
+
 message SliceParameter {
   // The axis along which to slice -- may be negative to index from the end
   // (e.g., -1 for the last axis).
@@ -1245,6 +1255,7 @@ message V1LayerParameter {
     RELU = 18;
     SIGMOID = 19;
     SIGMOID_CROSS_ENTROPY_LOSS = 27;
+    SIGNUM = 40;
     SILENCE = 36;
     SOFTMAX = 20;
     SOFTMAX_LOSS = 21;
@@ -1288,6 +1299,7 @@ message V1LayerParameter {
   optional PowerParameter power_param = 21;
   optional ReLUParameter relu_param = 30;
   optional SigmoidParameter sigmoid_param = 38;
+  optional SignumParametr signum_parametr = 43;
   optional SoftmaxParameter softmax_param = 39;
   optional SliceParameter slice_param = 31;
   optional TanHParameter tanh_param = 37;

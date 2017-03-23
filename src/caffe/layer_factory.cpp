@@ -12,6 +12,7 @@
 #include "caffe/layers/pooling_layer.hpp"
 #include "caffe/layers/relu_layer.hpp"
 #include "caffe/layers/sigmoid_layer.hpp"
+#include "caffe/layers/signum_layer.hpp"
 #include "caffe/layers/softmax_layer.hpp"
 #include "caffe/layers/tanh_layer.hpp"
 #include "caffe/proto/caffe.pb.h"
@@ -23,6 +24,7 @@
 #include "caffe/layers/cudnn_pooling_layer.hpp"
 #include "caffe/layers/cudnn_relu_layer.hpp"
 #include "caffe/layers/cudnn_sigmoid_layer.hpp"
+#include "caffe/layers/cudnn_signum_layer.hpp"
 #include "caffe/layers/cudnn_softmax_layer.hpp"
 #include "caffe/layers/cudnn_tanh_layer.hpp"
 #endif
@@ -196,6 +198,30 @@ shared_ptr<Layer<Dtype> > GetSigmoidLayer(const LayerParameter& param) {
 }
 
 REGISTER_LAYER_CREATOR(Sigmoid, GetSigmoidLayer);
+
+// Get signum layer according to engine.
+template <typename Dtype>
+shared_ptr<Layer<Dtype> > GetSignumLayer(const LayerParameter& param) {
+  SignumParameter_Engine engine = param.signum_param().engine();
+  if (engine == SignumParameter_Engine_DEFAULT) {
+    engine = SignumParameter_Engine_CAFFE;
+#ifdef USE_CUDNN
+    engine = SigmoidParameter_Engine_CUDNN;
+#endif
+  }
+  if (engine == SignumParameter_Engine_CAFFE) {
+    return shared_ptr<Layer<Dtype> >(new SignumLayer<Dtype>(param));
+#ifdef USE_CUDNN
+  } else if (engine == SignumParameter_Engine_CUDNN) {
+    return shared_ptr<Layer<Dtype> >(new CuDNNSignumLayer<Dtype>(param));
+#endif
+  } else {
+    LOG(FATAL) << "Layer " << param.name() << " has unknown engine.";
+    throw;  // Avoids missing return warning
+  }
+}
+
+REGISTER_LAYER_CREATOR(Signum, GetSignumLayer);
 
 // Get softmax layer according to engine.
 template <typename Dtype>

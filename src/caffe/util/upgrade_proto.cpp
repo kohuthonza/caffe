@@ -587,6 +587,8 @@ V1LayerParameter_LayerType UpgradeV0LayerType(const string& type) {
     return V1LayerParameter_LayerType_RELU;
   } else if (type == "sigmoid") {
     return V1LayerParameter_LayerType_SIGMOID;
+  } else if (type == "signum") {
+    return V1LayerParameter_LayerType_SIGNUM;  
   } else if (type == "softmax") {
     return V1LayerParameter_LayerType_SOFTMAX;
   } else if (type == "softmax_loss") {

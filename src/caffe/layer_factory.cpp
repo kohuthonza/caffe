@@ -206,7 +206,7 @@ shared_ptr<Layer<Dtype> > GetSignumLayer(const LayerParameter& param) {
   if (engine == SignumParameter_Engine_DEFAULT) {
     engine = SignumParameter_Engine_CAFFE;
 #ifdef USE_CUDNN
-    engine = SigmoidParameter_Engine_CUDNN;
+    engine = SignumParameter_Engine_CUDNN;
 #endif
   }
   if (engine == SignumParameter_Engine_CAFFE) {

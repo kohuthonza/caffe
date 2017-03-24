@@ -36,6 +36,7 @@ STUB_GPU(SignumLayer);
 #endif
 
 INSTANTIATE_CLASS(SignumLayer);
+REGISTER_LAYER_CLASS(Signum);
 
 
 }  // namespace caffe

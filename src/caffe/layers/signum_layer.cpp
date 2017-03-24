@@ -1,6 +1,6 @@
+#include <cmath>
 #include <vector>
 
-#include "caffe/util/math_functions.hpp"
 #include "caffe/layers/signum_layer.hpp"
 
 namespace caffe {
@@ -12,7 +12,7 @@ void SignumLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   Dtype* top_data = top[0]->mutable_cpu_data();
   const int count = bottom[0]->count();
   for (int i = 0; i < count; ++i) {
-    top_data[i] = caffe_sign(bottom_data[i]);
+    top_data[i] = copysign(1.0, bottom_data[i]);
   }
 }
 

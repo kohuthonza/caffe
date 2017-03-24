@@ -8,7 +8,7 @@ namespace caffe {
 template <typename Dtype>
 __global__ void SignumForward(const int n, const Dtype* in, Dtype* out) {
   CUDA_KERNEL_LOOP(index, n) {
-    out[index] = 1. / (1. + exp(-in[index]));
+    out[index] = copysign(1.0, in[index]);
   }
 }
 
@@ -31,10 +31,9 @@ void SignumLayer<Dtype>::Forward_gpu(const vector<Blob<Dtype>*>& bottom,
 
 template <typename Dtype>
 __global__ void SignumBackward(const int n, const Dtype* in_diff,
-    const Dtype* out_data, Dtype* out_diff) {
+    const Dtype* in_data, Dtype* out_diff) {
   CUDA_KERNEL_LOOP(index, n) {
-    const Dtype sigmoid_x = out_data[index];
-    out_diff[index] = in_diff[index] * sigmoid_x * (1 - sigmoid_x);
+    out_diff[index] = in_diff[index] * (in_data[index] < 1. && in_data[index] > -1.);
   }
 }
 
@@ -43,13 +42,13 @@ void SignumLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
     const vector<bool>& propagate_down,
     const vector<Blob<Dtype>*>& bottom) {
   if (propagate_down[0]) {
-    const Dtype* top_data = top[0]->gpu_data();
+    const Dtype* bottom_data = bottom[0]->gpu_data();
     const Dtype* top_diff = top[0]->gpu_diff();
     Dtype* bottom_diff = bottom[0]->mutable_gpu_diff();
     const int count = bottom[0]->count();
     // NOLINT_NEXT_LINE(whitespace/operators)
     SignumBackward<Dtype><<<CAFFE_GET_BLOCKS(count), CAFFE_CUDA_NUM_THREADS>>>(
-        count, top_diff, top_data, bottom_diff);
+        count, top_diff, bottom_data, bottom_diff);
     CUDA_POST_KERNEL_CHECK;
   }
 }

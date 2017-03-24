@@ -7,6 +7,7 @@
 
 #include "caffe/layer.hpp"
 #include "caffe/layer_factory.hpp"
+#include "caffe/layers/binary_conv_layer.hpp"
 #include "caffe/layers/conv_layer.hpp"
 #include "caffe/layers/lrn_layer.hpp"
 #include "caffe/layers/pooling_layer.hpp"
@@ -17,6 +18,7 @@
 #include "caffe/proto/caffe.pb.h"
 
 #ifdef USE_CUDNN
+#include "caffe/layers/cudnn_binary_conv_layer.hpp"
 #include "caffe/layers/cudnn_conv_layer.hpp"
 #include "caffe/layers/cudnn_lcn_layer.hpp"
 #include "caffe/layers/cudnn_lrn_layer.hpp"
@@ -72,6 +74,46 @@ shared_ptr<Layer<Dtype> > GetConvolutionLayer(
 }
 
 REGISTER_LAYER_CREATOR(Convolution, GetConvolutionLayer);
+
+// Get binary convolution layer according to engine.
+template <typename Dtype>
+shared_ptr<Layer<Dtype> > GetBinaryConvolutionLayer(
+    const LayerParameter& param) {
+  BinaryConvolutionParameter binary_conv_param = param.binary_convolution_param();
+  BinaryConvolutionParameter_Engine engine = binary_conv_param.engine();
+#ifdef USE_CUDNN
+  bool use_dilation = false;
+  for (int i = 0; i < binary_conv_param.dilation_size(); ++i) {
+    if (binary_conv_param.dilation(i) > 1) {
+      use_dilation = true;
+    }
+  }
+#endif
+  if (engine == BinaryConvolutionParameter_Engine_DEFAULT) {
+    engine = BinaryConvolutionParameter_Engine_CAFFE;
+#ifdef USE_CUDNN
+    if (!use_dilation) {
+      engine = BinaryConvolutionParameter_Engine_CUDNN;
+    }
+#endif
+  }
+  if (engine == BinaryConvolutionParameter_Engine_CAFFE) {
+    return shared_ptr<Layer<Dtype> >(new BinaryConvolutionLayer<Dtype>(param));
+#ifdef USE_CUDNN
+  } else if (engine == BinaryConvolutionParameter_Engine_CUDNN) {
+    if (use_dilation) {
+      LOG(FATAL) << "CuDNN doesn't support the dilated convolution at Layer "
+                 << param.name();
+    }
+    return shared_ptr<Layer<Dtype> >(new CuDNNBinaryConvolutionLayer<Dtype>(param));
+#endif
+  } else {
+    LOG(FATAL) << "Layer " << param.name() << " has unknown engine.";
+    throw;  // Avoids missing return warning
+  }
+}
+
+REGISTER_LAYER_CREATOR(BinaryConvolution, GetBinaryConvolutionLayer);
 
 // Get pooling layer according to engine.
 template <typename Dtype>

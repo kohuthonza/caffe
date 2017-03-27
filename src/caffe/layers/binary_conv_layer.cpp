@@ -1,3 +1,4 @@
+#include <cmath>
 #include <vector>
 
 #include "caffe/util/math_functions.hpp"
@@ -7,7 +8,7 @@
 using namespace std;
 
 namespace caffe {
-    
+      
 
 template <typename Dtype>
 void BinaryConvolutionLayer<Dtype>::compute_output_shape() {
@@ -27,27 +28,39 @@ void BinaryConvolutionLayer<Dtype>::compute_output_shape() {
 }
 
 template <typename Dtype>
-Dtype* BinaryConvolutionLayer<Dtype>::compute_binary_weight(const Dtype* weight) {
- 
+void BinaryConvolutionLayer<Dtype>::compute_binary_weight(const Dtype* weight, Dtype* binary_weight) {
   const int kernel_size = this->blobs_[0]->shape(1) * this->blobs_[0]->shape(2) * this->blobs_[0]->shape(3);
   for (int i = 0; i < this->num_output_; ++i){
-      Dtype kernel_alfa = caffe_cpu_asum(kernel_size, weight + i * kernel_size) / kernel_size;
-      //cout << kernel_alfa << endl;
+    Dtype kernel_alfa = caffe_cpu_asum(kernel_size, weight + i * kernel_size) / kernel_size;
+    for (int j = 0; j < kernel_size; ++j){
+      binary_weight[i * kernel_size + j] = copysign(1.0, weight[i * kernel_size + j]) * kernel_alfa;
+    }
   }
-  //cout << endl;
+}
+
+template <typename Dtype>
+void BinaryConvolutionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom, 
+        const vector<Blob<Dtype>*>& top){
+    BaseConvolutionLayer<Dtype>::LayerSetUp(bottom, top);
+    vector<int> kernel_blob_shape;
+    kernel_blob_shape.push_back(this->blobs_[0]->shape(0));
+    kernel_blob_shape.push_back(this->blobs_[0]->shape(1));
+    kernel_blob_shape.push_back(this->blobs_[0]->shape(2));
+    kernel_blob_shape.push_back(this->blobs_[0]->shape(3));
+    this->binary_weight = new Blob<Dtype>(kernel_blob_shape);
 }
 
 template <typename Dtype>
 void BinaryConvolutionLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
   const Dtype* weight = this->blobs_[0]->cpu_data();
-  //Dtype* binary_weight = compute_binary_weight(weight);
-    
+  Dtype* binary_weight = this->binary_weight->mutable_cpu_data();
+  compute_binary_weight(weight, binary_weight);
   for (int i = 0; i < bottom.size(); ++i) {
     const Dtype* bottom_data = bottom[i]->cpu_data();
     Dtype* top_data = top[i]->mutable_cpu_data();
     for (int n = 0; n < this->num_; ++n) {
-      this->forward_cpu_gemm(bottom_data + n * this->bottom_dim_, weight,
+      this->forward_cpu_gemm(bottom_data + n * this->bottom_dim_, binary_weight,
           top_data + n * this->top_dim_);
       if (this->bias_term_) {
         const Dtype* bias = this->blobs_[1]->cpu_data();
@@ -61,6 +74,10 @@ template <typename Dtype>
 void BinaryConvolutionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
   const Dtype* weight = this->blobs_[0]->cpu_data();
+  Dtype* binary_weight = this->binary_weight->mutable_cpu_data();
+  
+  compute_binary_weight(weight, binary_weight);
+  
   Dtype* weight_diff = this->blobs_[0]->mutable_cpu_diff();
   for (int i = 0; i < top.size(); ++i) {
     const Dtype* top_diff = top[i]->cpu_diff();
@@ -82,7 +99,7 @@ void BinaryConvolutionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top
         }
         // gradient w.r.t. bottom data, if necessary.
         if (propagate_down[i]) {
-          this->backward_cpu_gemm(top_diff + n * this->top_dim_, weight,
+          this->backward_cpu_gemm(top_diff + n * this->top_dim_, binary_weight,
               bottom_diff + n * this->bottom_dim_);
         }
       }

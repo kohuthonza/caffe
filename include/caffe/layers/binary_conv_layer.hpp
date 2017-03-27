@@ -9,6 +9,9 @@
 
 #include "caffe/layers/base_conv_layer.hpp"
 
+#include <iostream>
+using namespace std;
+
 namespace caffe {
 
 template <typename Dtype>
@@ -16,8 +19,10 @@ class BinaryConvolutionLayer : public BaseConvolutionLayer<Dtype> {
  public:
   
   explicit BinaryConvolutionLayer(const LayerParameter& param)
-      : BaseConvolutionLayer<Dtype>(param) {}
-
+      : BaseConvolutionLayer<Dtype>(param) {
+      }
+  virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
   virtual inline const char* type() const { return "BinaryConvolution"; }
   
 
@@ -32,7 +37,8 @@ class BinaryConvolutionLayer : public BaseConvolutionLayer<Dtype> {
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
   virtual inline bool reverse_dimensions() { return false; }
   virtual void compute_output_shape();
-  virtual Dtype* compute_binary_weight(const Dtype* weight);
+  virtual void compute_binary_weight(const Dtype* weight, Dtype* binary_weight);
+  Blob<Dtype>* binary_weight; 
 };
 
 }  // namespace caffe

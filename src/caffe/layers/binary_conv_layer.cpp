@@ -1,8 +1,13 @@
 #include <vector>
 
+#include "caffe/util/math_functions.hpp"
 #include "caffe/layers/binary_conv_layer.hpp"
 
+#include <iostream>
+using namespace std;
+
 namespace caffe {
+    
 
 template <typename Dtype>
 void BinaryConvolutionLayer<Dtype>::compute_output_shape() {
@@ -22,9 +27,22 @@ void BinaryConvolutionLayer<Dtype>::compute_output_shape() {
 }
 
 template <typename Dtype>
+Dtype* BinaryConvolutionLayer<Dtype>::compute_binary_weight(const Dtype* weight) {
+ 
+  const int kernel_size = this->blobs_[0]->shape(1) * this->blobs_[0]->shape(2) * this->blobs_[0]->shape(3);
+  for (int i = 0; i < this->num_output_; ++i){
+      Dtype kernel_alfa = caffe_cpu_asum(kernel_size, weight + i * kernel_size) / kernel_size;
+      //cout << kernel_alfa << endl;
+  }
+  //cout << endl;
+}
+
+template <typename Dtype>
 void BinaryConvolutionLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
   const Dtype* weight = this->blobs_[0]->cpu_data();
+  //Dtype* binary_weight = compute_binary_weight(weight);
+    
   for (int i = 0; i < bottom.size(); ++i) {
     const Dtype* bottom_data = bottom[i]->cpu_data();
     Dtype* top_data = top[i]->mutable_cpu_data();

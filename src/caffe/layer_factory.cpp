@@ -5,6 +5,9 @@
 #endif
 #include <string>
 
+#include <iostream>
+using namespace std;
+
 #include "caffe/layer.hpp"
 #include "caffe/layer_factory.hpp"
 #include "caffe/layers/binary_conv_layer.hpp"
@@ -79,28 +82,28 @@ REGISTER_LAYER_CREATOR(Convolution, GetConvolutionLayer);
 template <typename Dtype>
 shared_ptr<Layer<Dtype> > GetBinaryConvolutionLayer(
     const LayerParameter& param) {
-  BinaryConvolutionParameter binary_conv_param = param.binary_convolution_param();
-  BinaryConvolutionParameter_Engine engine = binary_conv_param.engine();
+  ConvolutionParameter conv_param = param.convolution_param();
+  ConvolutionParameter_Engine engine = conv_param.engine();
 #ifdef USE_CUDNN
   bool use_dilation = false;
-  for (int i = 0; i < binary_conv_param.dilation_size(); ++i) {
-    if (binary_conv_param.dilation(i) > 1) {
+  for (int i = 0; i < conv_param.dilation_size(); ++i) {
+    if (conv_param.dilation(i) > 1) {
       use_dilation = true;
     }
   }
 #endif
-  if (engine == BinaryConvolutionParameter_Engine_DEFAULT) {
-    engine = BinaryConvolutionParameter_Engine_CAFFE;
+  if (engine == ConvolutionParameter_Engine_DEFAULT) {
+    engine = ConvolutionParameter_Engine_CAFFE;
 #ifdef USE_CUDNN
     if (!use_dilation) {
-      engine = BinaryConvolutionParameter_Engine_CUDNN;
+      engine = ConvolutionParameter_Engine_CUDNN;
     }
 #endif
   }
-  if (engine == BinaryConvolutionParameter_Engine_CAFFE) {
+  if (engine == ConvolutionParameter_Engine_CAFFE) {
     return shared_ptr<Layer<Dtype> >(new BinaryConvolutionLayer<Dtype>(param));
 #ifdef USE_CUDNN
-  } else if (engine == BinaryConvolutionParameter_Engine_CUDNN) {
+  } else if (engine == ConvolutionParameter_Engine_CUDNN) {
     if (use_dilation) {
       LOG(FATAL) << "CuDNN doesn't support the dilated convolution at Layer "
                  << param.name();

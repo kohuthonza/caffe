@@ -37,8 +37,12 @@ class BinaryConvolutionLayer : public BaseConvolutionLayer<Dtype> {
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
   virtual inline bool reverse_dimensions() { return false; }
   virtual void compute_output_shape();
-  virtual void compute_binary_weight(const Dtype* weight, Dtype* binary_weight);
-  Blob<Dtype>* binary_weight; 
+  virtual void compute_binary_weight(const Dtype* weight, Dtype* binary_weight, vector<Dtype> kernel_alfa);
+  virtual void compute_binary_weight_diff(const Dtype* weight, Dtype* weight_diff, Dtype* binary_weight_diff, vector<Dtype> kernel_alfa);
+  virtual vector<Dtype> compute_kernel_alfa(const Dtype* weight);
+  Blob<Dtype>* binary_weight_;
+  int kernel_size_;
+  bool gradient_update_;
 };
 
 }  // namespace caffe

@@ -43,6 +43,7 @@ class BinaryConvolutionLayer : public BaseConvolutionLayer<Dtype> {
   Blob<Dtype>* binary_weight_;
   int kernel_size_;
   bool gradient_update_;
+  bool gradient_scale_;
 };
 
 }  // namespace caffe

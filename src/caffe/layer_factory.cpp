@@ -5,9 +5,6 @@
 #endif
 #include <string>
 
-#include <iostream>
-using namespace std;
-
 #include "caffe/layer.hpp"
 #include "caffe/layer_factory.hpp"
 #include "caffe/layers/binary_conv_layer.hpp"

@@ -3,9 +3,6 @@
 
 #include "caffe/layers/binary_conv_layer.hpp"
 
-#include <iostream>
-using namespace std;
-
 namespace caffe {
       
 
@@ -48,7 +45,12 @@ void BinaryConvolutionLayer<Dtype>::compute_binary_weight_diff(const Dtype* weig
     } 
   }
   for (int i = 0; i < this->blobs_[0]->count(); ++i) {
-    weight_diff[i] += binary_weight_diff[i];
+    if (this->gradient_scale_) {
+      weight_diff[i] += binary_weight_diff[i] * this->kernel_size_;
+    }
+    else {
+      weight_diff[i] += binary_weight_diff[i];
+    }
   }
 }
 
@@ -73,6 +75,7 @@ void BinaryConvolutionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& botto
   this->binary_weight_ = new Blob<Dtype>(kernel_blob_shape);
   this->kernel_size_ = this->blobs_[0]->shape(1) * this->blobs_[0]->shape(2) * this->blobs_[0]->shape(3);
   this->gradient_update_ = this->layer_param_.binary_convolution_param().gradient_update();
+  this->gradient_scale_ = this->layer_param_.binary_convolution_param().gradient_scale();
 }
 
 template <typename Dtype>

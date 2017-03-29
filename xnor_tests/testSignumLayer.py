@@ -35,16 +35,16 @@ def main():
 
     print("Forward test")
     print("Input data:")
-    randomValues = np.random.random_sample(net.blobs['signum-input'].data.shape) * 3 - 1
-    randomValues[randomValues == 0.0] = -.05326
-    randomValues = np.array(randomValues, dtype=np.float32)
-    print randomValues
-    net.blobs['signum-input'].data[...] = randomValues
+    randomInput = np.random.random_sample(net.blobs['signum-input'].data.shape) * 3 - 1
+    randomInput[randomInput == 0.0] = -.05326
+    randomInput = np.array(randomInput, dtype=np.float32)
+    print randomInput
+    net.blobs['signum-input'].data[...] = randomInput
     net.forward()
     print("Output of signum layer:")
     print(net.blobs['signum'].data)
     print("Output of numpy signum:")
-    numpySignumOutput = np.sign(randomValues)
+    numpySignumOutput = np.sign(randomInput)
     print(numpySignumOutput)
     print("Difference of outputs:")
     difference = net.blobs['signum'].data - numpySignumOutput
@@ -61,18 +61,23 @@ def main():
     print("*********************************************")
 
     print("Backward test")
-    print("Input data and diff:")
-    net.blobs['signum'].diff[...] = randomValues
-    print(net.blobs['signum'].diff)
+    print("Input data:")
+    print randomInput
+    randomDiff = np.random.random_sample(net.blobs['signum-input'].data.shape) * 3 - 1
+    randomDiff[randomDiff == 0.0] = -.05326
+    randomDiff = np.array(randomDiff, dtype=np.float32)
+    print("Input diff:")
+    print randomDiff
+    net.blobs['signum'].diff[...] = randomDiff
     net.backward()
     print("Output of signum layer:")
     print(net.blobs['signum-input'].diff)
     print("Output of numpy:")
-    randomValues[randomValues >= 1.0] = 0.0
-    randomValues[randomValues <= -1.0] = 0.0
-    print randomValues
+    randomDiff[randomInput >= 1.0] = 0.0
+    randomDiff[randomInput <= -1.0] = 0.0
+    print randomDiff
     print("Differences of outputs:")
-    difference = net.blobs['signum-input'].diff - randomValues
+    difference = net.blobs['signum-input'].diff - randomDiff
     print(difference)
     print("Sum of differences:")
     difference = difference.sum()

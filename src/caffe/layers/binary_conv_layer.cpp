@@ -3,8 +3,7 @@
 
 #include "caffe/layers/binary_conv_layer.hpp"
 
-namespace caffe {
-      
+namespace caffe {     
 
 template <typename Dtype>
 void BinaryConvolutionLayer<Dtype>::compute_output_shape() {
@@ -42,7 +41,7 @@ void BinaryConvolutionLayer<Dtype>::compute_binary_weight_diff(const Dtype* weig
       else {
         binary_weight_diff[i * this->kernel_size_ + j] = binary_weight_diff[i * this->kernel_size_ + j] * (1. / this->kernel_size_);
       }
-    } 
+    }
   }
   for (int i = 0; i < this->blobs_[0]->count(); ++i) {
     if (this->gradient_scale_) {
@@ -102,13 +101,16 @@ template <typename Dtype>
 void BinaryConvolutionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
   const Dtype* weight = this->blobs_[0]->cpu_data();
-  Dtype* binary_weight = this->binary_weight_->mutable_cpu_data();
   Dtype* weight_diff = this->blobs_[0]->mutable_cpu_diff();
-  Dtype* binary_weight_diff = this->binary_weight_->mutable_cpu_diff();
+  Dtype* binary_weight = this->binary_weight_->mutable_cpu_data();
+  Dtype* binary_weight_diff = NULL;
   vector<Dtype> kernel_alfa = compute_kernel_alfa(weight);  
   compute_binary_weight(weight, binary_weight, kernel_alfa);
-  for (int i = 0; i < this->binary_weight_->count(); ++i) {
+  if (this->gradient_update_) {
+    binary_weight_diff = this->binary_weight_->mutable_cpu_diff();
+    for (int i = 0; i < this->binary_weight_->count(); ++i) {
       binary_weight_diff[i] = 0.;
+    }
   }
   for (int i = 0; i < top.size(); ++i) {
     const Dtype* top_diff = top[i]->cpu_diff();

@@ -14,6 +14,7 @@ namespace caffe {
 /**
  * TODO(dox) explain cuDNN interface
  */
+
 template <typename Dtype>
 void CuDNNBinaryConvolutionLayer<Dtype>::LayerSetUp(
     const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {

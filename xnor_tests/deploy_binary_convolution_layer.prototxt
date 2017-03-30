@@ -1,0 +1,32 @@
+name: "BinaryConvolutionNet"
+force_backward: true
+input: "binary_convolution_input"
+input_shape {
+  dim: 1
+  dim: 1
+  dim: 8
+  dim: 8
+}
+
+layer {
+  name: "binary_convolution"
+  type: "BinaryConvolution"
+  bottom: "binary_convolution_input"
+  top: "binary_convolution"
+  convolution_param {
+    num_output: 64  
+    kernel_size: 4   
+    stride: 1
+    bias_term: false         
+    weight_filler {
+      type: "xavier" 
+    }
+  }
+  binary_convolution_param {
+    gradient_update: true
+    gradient_scale: true
+  }
+}
+
+
+

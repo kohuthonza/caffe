@@ -1,0 +1,28 @@
+name: "ConvolutionNet"
+force_backward: true
+input: "convolution_input"
+input_shape {
+  dim: 1
+  dim: 1
+  dim: 8
+  dim: 8
+}
+
+layer {
+  name: "convolution"
+  type: "Convolution"
+  bottom: "convolution_input"
+  top: "convolution"
+  convolution_param {
+    num_output: 64  
+    kernel_size: 4   
+    stride: 1
+    bias_term: false         
+    weight_filler {
+      type: "xavier" 
+    }
+  }
+}
+
+
+

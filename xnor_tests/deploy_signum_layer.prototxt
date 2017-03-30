@@ -1,6 +1,6 @@
 name: "SignumNet"
 force_backward: true
-input: "signum-input"
+input: "signum_input"
 input_shape {
   dim: 128
   dim: 64
@@ -9,7 +9,7 @@ input_shape {
 layer {
   name: "signum"
   type: "Signum"
-  bottom: "signum-input"
+  bottom: "signum_input"
   top: "signum"
 }
 

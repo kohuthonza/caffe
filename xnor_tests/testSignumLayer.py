@@ -35,11 +35,11 @@ def main():
 
     print("Forward test")
     print("Input data:")
-    randomInput = np.random.random_sample(net.blobs['signum-input'].data.shape) * 3 - 1
+    randomInput = np.random.random_sample(net.blobs['signum_input'].data.shape) * 3 - 1.5
     randomInput[randomInput == 0.0] = -.05326
     randomInput = np.array(randomInput, dtype=np.float32)
     print randomInput
-    net.blobs['signum-input'].data[...] = randomInput
+    net.blobs['signum_input'].data[...] = randomInput
     net.forward()
     print("Output of signum layer:")
     print(net.blobs['signum'].data)
@@ -47,12 +47,12 @@ def main():
     numpySignumOutput = np.sign(randomInput)
     print(numpySignumOutput)
     print("Difference of outputs:")
-    difference = net.blobs['signum'].data - numpySignumOutput
-    print(difference)
+    forwardDifference = net.blobs['signum'].data - numpySignumOutput
+    print(forwardDifference)
     print("Sum of differences:")
-    difference = difference.sum()
-    print(difference)
-    if difference == 0.0:
+    forwardDifference = forwardDifference.sum()
+    print(forwardDifference)
+    if forwardDifference == 0.0:
         print("Forward test PASSED")
         forwardTestPassed = True
     else:
@@ -63,7 +63,7 @@ def main():
     print("Backward test")
     print("Input data:")
     print randomInput
-    randomDiff = np.random.random_sample(net.blobs['signum-input'].data.shape) * 3 - 1
+    randomDiff = np.random.random_sample(net.blobs['signum_input'].data.shape) * 3 - 1
     randomDiff[randomDiff == 0.0] = -.05326
     randomDiff = np.array(randomDiff, dtype=np.float32)
     print("Input diff:")
@@ -71,24 +71,27 @@ def main():
     net.blobs['signum'].diff[...] = randomDiff
     net.backward()
     print("Output of signum layer:")
-    print(net.blobs['signum-input'].diff)
+    print(net.blobs['signum_input'].diff)
     print("Output of numpy:")
     randomDiff[randomInput >= 1.0] = 0.0
     randomDiff[randomInput <= -1.0] = 0.0
     print randomDiff
     print("Differences of outputs:")
-    difference = net.blobs['signum-input'].diff - randomDiff
-    print(difference)
-    print("Sum of differences:")
-    difference = difference.sum()
-    print(difference)
-    if difference == 0.0:
+    backwardDifference = net.blobs['signum_input'].diff - randomDiff
+    print(backwardDifference)
+    print("Mean of differences:")
+    backwardDifference = backwardDifference.mean()
+    print(backwardDifference)
+    if backwardDifference == 0.0:
         print("Backward test PASSED")
         backwardTestPassed = True
     else:
         print("Backward test FAILED")
 
     print("*********************************************")
+
+    print("Forward test mean of differences: {}".format(forwardDifference))
+    print("Backward test mean of differences: {}".format(backwardDifference))
 
     if forwardTestPassed and backwardTestPassed:
         if args.cpu:

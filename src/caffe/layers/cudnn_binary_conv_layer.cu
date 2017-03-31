@@ -19,12 +19,43 @@ __global__ void copy_abs_value(const int n, const Dtype* in, Dtype* out) {
 }
 
 template <typename Dtype>
-__global__ void compute_binary_weight(const int n, const Dtype* weight,
+__global__ void multiply_alfa_with_binary_weight(const int n, const Dtype* weight,
                Dtype* binary_weight, const Dtype* alfa_kernel, const int kernel_size) {
   CUDA_KERNEL_LOOP(index, n) {
     binary_weight[index] = copysign(1.0, weight[index]) * alfa_kernel[index / kernel_size];
   }
 }
+
+template <typename Dtype>
+__global__ void set_values_to_zero(const int n, Dtype* in) {
+  CUDA_KERNEL_LOOP(index, n) {
+    in[index] = 0.;
+  }
+}
+
+template <typename Dtype>
+__global__ void gradient_update(const int n, const Dtype* weight,
+              Dtype* weight_diff, Dtype* binary_weight_diff,
+              const Dtype* alfa_kernel, const int kernel_size) {
+  CUDA_KERNEL_LOOP(index, n) {
+    if (weight[index] < 1. && weight[index] > -1.) {
+      weight_diff[index] += binary_weight_diff[index] *
+                            (alfa_kernel[index / kernel_size] + 1./kernel_size);
+    }
+    else {
+      weight_diff[index] += binary_weight_diff[index] * 1./kernel_size;
+    }
+  }
+}
+
+template <typename Dtype>
+__global__ void gradient_scale(const int n, Dtype* weight_diff,
+              const int kernel_size) {
+  CUDA_KERNEL_LOOP(index, n) {
+    weight_diff[index] *= kernel_size;
+  }
+}
+
 
 template <typename Dtype>
 void CuDNNBinaryConvolutionLayer<Dtype>::Forward_gpu(
@@ -45,11 +76,10 @@ void CuDNNBinaryConvolutionLayer<Dtype>::Forward_gpu(
         cudnn::dataType<Dtype>::zero,
         alfa_top_desc_, alfa_kernel));
   Dtype* binary_weight = this->binary_weight_->mutable_gpu_data();
-  compute_binary_weight<<<CAFFE_GET_BLOCKS(this->blobs_[0]->count()),
+  multiply_alfa_with_binary_weight<<<CAFFE_GET_BLOCKS(this->blobs_[0]->count()),
                           CAFFE_CUDA_NUM_THREADS>>>
                           (this->blobs_[0]->count(), weight, binary_weight,
                            alfa_kernel, this->kernel_size_);
-
   for (int i = 0; i < bottom.size(); ++i) {
     const Dtype* bottom_data = bottom[i]->gpu_data();
     Dtype* top_data = top[i]->mutable_gpu_data();
@@ -88,29 +118,39 @@ template <typename Dtype>
 void CuDNNBinaryConvolutionLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>& top,
     const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
   const Dtype* weight = NULL;
+  Dtype* abs_weight = NULL;
   Dtype* weight_diff = NULL;
-  Dtype* mutable_binary_weight = NULL;
-  const Dtype* binary_weight = NULL;
+  Dtype* binary_weight = NULL;
   Dtype* binary_weight_diff = NULL;
-  vector<Dtype> kernel_alfa;
+  Dtype* alfa_kernel = NULL;
+  const Dtype* alfa_kernel_multiplier = NULL;
   if (this->param_propagate_down_[0]) {
-    weight = this->blobs_[0]->cpu_data();
+    weight = this->blobs_[0]->gpu_data();
+    abs_weight = this->abs_weight_->mutable_gpu_data();
+    copy_abs_value<<<CAFFE_GET_BLOCKS(this->blobs_[0]->count()),
+                     CAFFE_CUDA_NUM_THREADS>>>
+                     (this->blobs_[0]->count(), weight, abs_weight);
+    alfa_kernel_multiplier = this->alfa_kernel_multiplier_->gpu_data();
+    alfa_kernel = this->alfa_kernel_->mutable_gpu_data();
+    CUDNN_CHECK(cudnnConvolutionForward(*alfa_handle_,
+          cudnn::dataType<Dtype>::one,
+          alfa_bottom_desc_, abs_weight,
+          alfa_filter_desc_, alfa_kernel_multiplier,
+          alfa_conv_desc_,
+          *alfa_fwd_algo_, NULL, 0,
+          cudnn::dataType<Dtype>::zero,
+          alfa_top_desc_, alfa_kernel));
+    binary_weight = this->binary_weight_->mutable_gpu_data();
+    multiply_alfa_with_binary_weight<<<CAFFE_GET_BLOCKS(this->blobs_[0]->count()),
+                            CAFFE_CUDA_NUM_THREADS>>>
+                            (this->blobs_[0]->count(), weight, binary_weight,
+                             alfa_kernel, this->kernel_size_);
+    weight_diff = this->blobs_[0]->mutable_gpu_diff();
     if (this->gradient_update_) {
-      weight_diff = this->blobs_[0]->mutable_cpu_diff();
-    }
-    else {
-      weight_diff = this->blobs_[0]->mutable_gpu_diff();
-    }
-    mutable_binary_weight = this->binary_weight_->mutable_cpu_data();
-    kernel_alfa = this->compute_kernel_alfa(weight);
-    this->compute_binary_weight(weight, mutable_binary_weight, kernel_alfa);
-    binary_weight = this->binary_weight_->gpu_data();
-    if (this->gradient_update_) {
-      binary_weight_diff = this->binary_weight_->mutable_cpu_diff();
-      for (int i = 0; i < this->binary_weight_->count(); ++i) {
-        binary_weight_diff[i] = 0.;
-      }
       binary_weight_diff = this->binary_weight_->mutable_gpu_diff();
+      set_values_to_zero<<<CAFFE_GET_BLOCKS(this->blobs_[0]->count()),
+                           CAFFE_CUDA_NUM_THREADS>>>
+                           (this->binary_weight_->count(), binary_weight_diff);
     }
   }
   Dtype* bias_diff = NULL;
@@ -164,11 +204,26 @@ void CuDNNBinaryConvolutionLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>
       // Gradient w.r.t. bottom data.
       if (propagate_down[i]) {
         if (weight == NULL) {
-          weight = this->blobs_[0]->cpu_data();
-          mutable_binary_weight = this->binary_weight_->mutable_cpu_data();
-          kernel_alfa = this->compute_kernel_alfa(weight);
-          this->compute_binary_weight(weight, mutable_binary_weight, kernel_alfa);
-          binary_weight = this->binary_weight_->gpu_data();
+          const Dtype* weight = this->blobs_[0]->gpu_data();
+          Dtype* abs_weight = this->abs_weight_->mutable_gpu_data();
+          copy_abs_value<<<CAFFE_GET_BLOCKS(this->blobs_[0]->count()),
+                           CAFFE_CUDA_NUM_THREADS>>>
+                           (this->blobs_[0]->count(), weight, abs_weight);
+          const Dtype* alfa_kernel_multiplier = this->alfa_kernel_multiplier_->gpu_data();
+          Dtype* alfa_kernel = this->alfa_kernel_->mutable_gpu_data();
+          CUDNN_CHECK(cudnnConvolutionForward(*alfa_handle_,
+                cudnn::dataType<Dtype>::one,
+                alfa_bottom_desc_, abs_weight,
+                alfa_filter_desc_, alfa_kernel_multiplier,
+                alfa_conv_desc_,
+                *alfa_fwd_algo_, NULL, 0,
+                cudnn::dataType<Dtype>::zero,
+                alfa_top_desc_, alfa_kernel));
+          Dtype* binary_weight = this->binary_weight_->mutable_gpu_data();
+          multiply_alfa_with_binary_weight<<<CAFFE_GET_BLOCKS(this->blobs_[0]->count()),
+                                  CAFFE_CUDA_NUM_THREADS>>>
+                                  (this->blobs_[0]->count(), weight, binary_weight,
+                                   alfa_kernel, this->kernel_size_);
         }
         Dtype* bottom_diff = bottom[i]->mutable_gpu_diff();
         CUDNN_CHECK(cudnnConvolutionBackwardData(
@@ -190,8 +245,15 @@ void CuDNNBinaryConvolutionLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>
     sync_binary_conv_groups<<<1, 1>>>();
   }
   if (this->gradient_update_) {
-    binary_weight_diff = this->binary_weight_->mutable_cpu_diff();
-    this->compute_binary_weight_diff(weight, weight_diff, binary_weight_diff, kernel_alfa);
+    gradient_update<<<CAFFE_GET_BLOCKS(this->blobs_[0]->count()),
+                      CAFFE_CUDA_NUM_THREADS>>>
+                      (this->blobs_[0]->count(), weight, weight_diff,
+                       binary_weight_diff, alfa_kernel, this->kernel_size_);
+    if (this->gradient_scale_) {
+      gradient_scale<<<CAFFE_GET_BLOCKS(this->blobs_[0]->count()),
+                       CAFFE_CUDA_NUM_THREADS>>>
+                       (this->blobs_[0]->count(), weight_diff, this->kernel_size_);
+    }
   }
 }
 

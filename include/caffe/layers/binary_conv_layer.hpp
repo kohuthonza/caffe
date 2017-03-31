@@ -17,14 +17,14 @@ namespace caffe {
 template <typename Dtype>
 class BinaryConvolutionLayer : public BaseConvolutionLayer<Dtype> {
  public:
-  
+
   explicit BinaryConvolutionLayer(const LayerParameter& param)
       : BaseConvolutionLayer<Dtype>(param) {
       }
   virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
   virtual inline const char* type() const { return "BinaryConvolution"; }
-  
+
 
  protected:
   virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
@@ -40,7 +40,7 @@ class BinaryConvolutionLayer : public BaseConvolutionLayer<Dtype> {
   virtual void compute_binary_weight(const Dtype* weight, Dtype* binary_weight, vector<Dtype> kernel_alfa);
   virtual void compute_binary_weight_diff(const Dtype* weight, Dtype* weight_diff, Dtype* binary_weight_diff, vector<Dtype> kernel_alfa);
   virtual vector<Dtype> compute_kernel_alfa(const Dtype* weight);
-  Blob<Dtype>* binary_weight_;
+  shared_ptr<Blob<Dtype> > binary_weight_;
   int kernel_size_;
   bool gradient_update_;
   bool gradient_scale_;

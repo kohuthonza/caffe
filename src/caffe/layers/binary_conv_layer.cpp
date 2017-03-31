@@ -3,7 +3,7 @@
 
 #include "caffe/layers/binary_conv_layer.hpp"
 
-namespace caffe {     
+namespace caffe {
 
 template <typename Dtype>
 void BinaryConvolutionLayer<Dtype>::compute_output_shape() {
@@ -36,7 +36,7 @@ void BinaryConvolutionLayer<Dtype>::compute_binary_weight_diff(const Dtype* weig
   for (int i = 0; i < this->num_output_; ++i) {
     for (int j = 0; j < this->kernel_size_; ++j) {
       if (weight[i * this->kernel_size_ + j] < 1. && weight[i * this->kernel_size_ + j] > -1.) {
-        binary_weight_diff[i * this->kernel_size_ + j] = binary_weight_diff[i * this->kernel_size_ + j] * (kernel_alfa[i] + 1. / this->kernel_size_); 
+        binary_weight_diff[i * this->kernel_size_ + j] = binary_weight_diff[i * this->kernel_size_ + j] * (kernel_alfa[i] + 1. / this->kernel_size_);
       }
       else {
         binary_weight_diff[i * this->kernel_size_ + j] = binary_weight_diff[i * this->kernel_size_ + j] * (1. / this->kernel_size_);
@@ -63,7 +63,7 @@ vector<Dtype> BinaryConvolutionLayer<Dtype>::compute_kernel_alfa(const Dtype* we
 }
 
 template <typename Dtype>
-void BinaryConvolutionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom, 
+void BinaryConvolutionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
         const vector<Blob<Dtype>*>& top){
   BaseConvolutionLayer<Dtype>::LayerSetUp(bottom, top);
   vector<int> kernel_blob_shape;
@@ -71,7 +71,7 @@ void BinaryConvolutionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& botto
   kernel_blob_shape.push_back(this->blobs_[0]->shape(1));
   kernel_blob_shape.push_back(this->blobs_[0]->shape(2));
   kernel_blob_shape.push_back(this->blobs_[0]->shape(3));
-  this->binary_weight_ = new Blob<Dtype>(kernel_blob_shape);
+  this->binary_weight_ = shared_ptr<Blob<Dtype> >(new Blob<Dtype>(kernel_blob_shape));
   this->kernel_size_ = this->blobs_[0]->shape(1) * this->blobs_[0]->shape(2) * this->blobs_[0]->shape(3);
   this->gradient_update_ = this->layer_param_.binary_convolution_param().gradient_update();
   this->gradient_scale_ = this->layer_param_.binary_convolution_param().gradient_scale();
@@ -104,7 +104,7 @@ void BinaryConvolutionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top
   Dtype* weight_diff = this->blobs_[0]->mutable_cpu_diff();
   Dtype* binary_weight = this->binary_weight_->mutable_cpu_data();
   Dtype* binary_weight_diff = NULL;
-  vector<Dtype> kernel_alfa = compute_kernel_alfa(weight);  
+  vector<Dtype> kernel_alfa = compute_kernel_alfa(weight);
   compute_binary_weight(weight, binary_weight, kernel_alfa);
   if (this->gradient_update_) {
     binary_weight_diff = this->binary_weight_->mutable_cpu_diff();
@@ -129,11 +129,11 @@ void BinaryConvolutionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top
         if (this->param_propagate_down_[0]) {
           if (this->gradient_update_) {
             this->weight_cpu_gemm(bottom_data + n * this->bottom_dim_,
-                top_diff + n * this->top_dim_, binary_weight_diff); 
+                top_diff + n * this->top_dim_, binary_weight_diff);
           }
           else {
             this->weight_cpu_gemm(bottom_data + n * this->bottom_dim_,
-                top_diff + n * this->top_dim_, weight_diff);    
+                top_diff + n * this->top_dim_, weight_diff);
           }
         }
         // gradient w.r.t. bottom data, if necessary.

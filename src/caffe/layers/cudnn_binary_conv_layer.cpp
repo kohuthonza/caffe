@@ -22,11 +22,14 @@ void CuDNNBinaryConvolutionLayer<Dtype>::LayerSetUp(
   // Initialize CUDA streams and cuDNN.
   stream_         = new cudaStream_t[this->group_ * CUDNN_STREAMS_PER_GROUP];
   handle_         = new cudnnHandle_t[this->group_ * CUDNN_STREAMS_PER_GROUP];
+  alfa_stream_    = new cudaStream_t;
+  alfa_handle_    = new cudnnHandle_t;
 
   // Initialize algorithm arrays
   fwd_algo_       = new cudnnConvolutionFwdAlgo_t[bottom.size()];
   bwd_filter_algo_= new cudnnConvolutionBwdFilterAlgo_t[bottom.size()];
   bwd_data_algo_  = new cudnnConvolutionBwdDataAlgo_t[bottom.size()];
+  alfa_fwd_algo_  = new cudnnConvolutionFwdAlgo_t;
 
   // initialize size arrays
   workspace_fwd_sizes_ = new size_t[bottom.size()];
@@ -56,6 +59,11 @@ void CuDNNBinaryConvolutionLayer<Dtype>::LayerSetUp(
     workspace[g] = NULL;
   }
 
+
+  CUDA_CHECK(cudaStreamCreate(alfa_stream_));
+  CUDNN_CHECK(cudnnCreate(alfa_handle_));
+  CUDNN_CHECK(cudnnSetStream(*alfa_handle_, *alfa_stream_));
+
   // Set the indexing parameters.
   bias_offset_ = (this->num_output_ / this->group_);
 
@@ -66,6 +74,9 @@ void CuDNNBinaryConvolutionLayer<Dtype>::LayerSetUp(
   cudnn::createFilterDesc<Dtype>(&filter_desc_,
       this->num_output_ / this->group_, this->channels_ / this->group_,
       kernel_h, kernel_w);
+
+  cudnn::createFilterDesc<Dtype>(&alfa_filter_desc_,
+      1, this->channels_, kernel_h, kernel_w);
 
   // Create tensor descriptor(s) for data and corresponding convolution(s).
   for (int i = 0; i < bottom.size(); i++) {
@@ -80,12 +91,38 @@ void CuDNNBinaryConvolutionLayer<Dtype>::LayerSetUp(
     conv_descs_.push_back(conv_desc);
   }
 
+  cudnn::createTensor4dDesc<Dtype>(&alfa_bottom_desc_);
+  cudnn::createTensor4dDesc<Dtype>(&alfa_top_desc_);
+  cudnn::createConvolutionDesc<Dtype>(&alfa_conv_desc_);
+
   // Tensor descriptor for bias.
   if (this->bias_term_) {
     cudnn::createTensor4dDesc<Dtype>(&bias_desc_);
   }
 
   handles_setup_ = true;
+
+  vector<int> blob_shape;
+  blob_shape.push_back(this->blobs_[0]->shape(0));
+  blob_shape.push_back(this->blobs_[0]->shape(1));
+  blob_shape.push_back(this->blobs_[0]->shape(2));
+  blob_shape.push_back(this->blobs_[0]->shape(3));
+  abs_weight_ = shared_ptr<Blob<Dtype> >(new Blob<Dtype>(blob_shape));
+
+  blob_shape.clear();
+
+  blob_shape.push_back(1);
+  blob_shape.push_back(this->blobs_[0]->shape(1));
+  blob_shape.push_back(this->blobs_[0]->shape(2));
+  blob_shape.push_back(this->blobs_[0]->shape(3));
+  alfa_kernel_multiplier_ = shared_ptr<Blob<Dtype> >(new Blob<Dtype>(blob_shape));
+  Dtype* alfa_kernel_multiplier_data = alfa_kernel_multiplier_->mutable_cpu_data();
+  for (int i = 0; i < alfa_kernel_multiplier_->count(); ++i){
+    alfa_kernel_multiplier_data[i] = 1./this->kernel_size_;
+  }
+
+  alfa_kernel_ = shared_ptr<Blob<Dtype> >(new Blob<Dtype>(this->blobs_[0]->shape(0), 1, 1, 1));
+
 }
 
 template <typename Dtype>
@@ -112,6 +149,20 @@ void CuDNNBinaryConvolutionLayer<Dtype>::Reshape(
   // Specify workspace limit for kernels directly until we have a
   // planning strategy and a rewrite of Caffe's GPU memory mangagement
   size_t workspace_limit_bytes = 8*1024*1024;
+
+  const int* kernel_shape_data = this->kernel_shape_.cpu_data();
+  const int kernel_h = kernel_shape_data[0];
+  const int kernel_w = kernel_shape_data[1];
+  cudnn::setTensor4dDesc<Dtype>(&alfa_bottom_desc_,
+      this->num_output_, this->channels_, kernel_h, kernel_w,
+      this->channels_ * kernel_h * kernel_w,
+      kernel_h * kernel_w, kernel_w, 1);
+  cudnn::setTensor4dDesc<Dtype>(&alfa_top_desc_,
+      this->num_output_, 1, 1, 1, 1, 1, 1, 1);
+  cudnn::setConvolutionDesc<Dtype>(&alfa_conv_desc_, alfa_bottom_desc_,
+      alfa_filter_desc_, 0, 0, 1, 1);
+
+  *alfa_fwd_algo_ = CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM;
 
   for (int i = 0; i < bottom.size(); i++) {
     cudnn::setTensor4dDesc<Dtype>(&bottom_descs_[i],
@@ -242,25 +293,34 @@ CuDNNBinaryConvolutionLayer<Dtype>::~CuDNNBinaryConvolutionLayer() {
     cudnnDestroyTensorDescriptor(top_descs_[i]);
     cudnnDestroyConvolutionDescriptor(conv_descs_[i]);
   }
+  cudnnDestroyTensorDescriptor(alfa_bottom_desc_);
+  cudnnDestroyTensorDescriptor(alfa_top_desc_);
+  cudnnDestroyConvolutionDescriptor(alfa_conv_desc_);
   if (this->bias_term_) {
     cudnnDestroyTensorDescriptor(bias_desc_);
   }
   cudnnDestroyFilterDescriptor(filter_desc_);
+  cudnnDestroyFilterDescriptor(alfa_filter_desc_);
 
   for (int g = 0; g < this->group_ * CUDNN_STREAMS_PER_GROUP; g++) {
     cudaStreamDestroy(stream_[g]);
     cudnnDestroy(handle_[g]);
   }
+  cudaStreamDestroy(*alfa_stream_);
+  cudnnDestroy(*alfa_handle_);
 
   cudaFree(workspaceData);
   delete [] stream_;
   delete [] handle_;
+  delete [] alfa_stream_;
+  delete [] alfa_handle_;
   delete [] fwd_algo_;
   delete [] bwd_filter_algo_;
   delete [] bwd_data_algo_;
   delete [] workspace_fwd_sizes_;
   delete [] workspace_bwd_data_sizes_;
   delete [] workspace_bwd_filter_sizes_;
+  delete [] alfa_fwd_algo_;
 }
 
 INSTANTIATE_CLASS(CuDNNBinaryConvolutionLayer);

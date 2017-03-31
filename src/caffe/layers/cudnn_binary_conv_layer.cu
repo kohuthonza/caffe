@@ -4,18 +4,52 @@
 
 #include "caffe/layers/cudnn_binary_conv_layer.hpp"
 
+#include <iostream>
+using namespace std;
+
 namespace caffe {
 
 __global__ void sync_binary_conv_groups() { }
 
+template <typename Dtype>
+__global__ void copy_abs_value(const int n, const Dtype* in, Dtype* out) {
+  CUDA_KERNEL_LOOP(index, n) {
+    out[index] = abs(in[index]);
+  }
+}
+
+template <typename Dtype>
+__global__ void compute_binary_weight(const int n, const Dtype* weight,
+               Dtype* binary_weight, const Dtype* alfa_kernel, const int kernel_size) {
+  CUDA_KERNEL_LOOP(index, n) {
+    binary_weight[index] = copysign(1.0, weight[index]) * alfa_kernel[index / kernel_size];
+  }
+}
 
 template <typename Dtype>
 void CuDNNBinaryConvolutionLayer<Dtype>::Forward_gpu(
     const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {
-  const Dtype* weight = this->blobs_[0]->cpu_data();
-  Dtype* mutable_binary_weight = this->binary_weight_->mutable_cpu_data();
-  this->compute_binary_weight(weight, mutable_binary_weight, this->compute_kernel_alfa(weight));
-  const Dtype* binary_weight = this->binary_weight_->gpu_data();
+  const Dtype* weight = this->blobs_[0]->gpu_data();
+  Dtype* abs_weight = this->abs_weight_->mutable_gpu_data();
+  copy_abs_value<<<CAFFE_GET_BLOCKS(this->blobs_[0]->count()),
+                   CAFFE_CUDA_NUM_THREADS>>>
+                   (this->blobs_[0]->count(), weight, abs_weight);
+  const Dtype* alfa_kernel_multiplier = this->alfa_kernel_multiplier_->gpu_data();
+  Dtype* alfa_kernel = this->alfa_kernel_->mutable_gpu_data();
+  CUDNN_CHECK(cudnnConvolutionForward(*alfa_handle_,
+        cudnn::dataType<Dtype>::one,
+        alfa_bottom_desc_, abs_weight,
+        alfa_filter_desc_, alfa_kernel_multiplier,
+        alfa_conv_desc_,
+        *alfa_fwd_algo_, NULL, 0,
+        cudnn::dataType<Dtype>::zero,
+        alfa_top_desc_, alfa_kernel));
+  Dtype* binary_weight = this->binary_weight_->mutable_gpu_data();
+  compute_binary_weight<<<CAFFE_GET_BLOCKS(this->blobs_[0]->count()),
+                          CAFFE_CUDA_NUM_THREADS>>>
+                          (this->blobs_[0]->count(), weight, binary_weight,
+                           alfa_kernel, this->kernel_size_);
+
   for (int i = 0; i < bottom.size(); ++i) {
     const Dtype* bottom_data = bottom[i]->gpu_data();
     Dtype* top_data = top[i]->mutable_gpu_data();

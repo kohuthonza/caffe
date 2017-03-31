@@ -153,7 +153,8 @@ def main():
 
     print("Forward test mean of differences: {}".format(forwardDifference))
     print("Backward test mean of differences: {}".format(backwardDifference))
-    print("Gradient test mean of differences: {}".format(gradientDifference))
+    if args.gradient_update:
+        print("Gradient test mean of differences: {}".format(gradientDifference))
 
     if forwardTestPassed and backwardTestPassed and gradientTestPassed:
         if args.cpu:

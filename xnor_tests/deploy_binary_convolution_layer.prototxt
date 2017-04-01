@@ -23,8 +23,8 @@ layer {
     }
   }
   binary_convolution_param {
-    gradient_update: true
-    gradient_scale: true
+    update_weight_diff: true
+    scale_weight_diff: true
   }
 }
 

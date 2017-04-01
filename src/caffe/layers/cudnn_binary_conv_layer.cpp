@@ -150,20 +150,6 @@ void CuDNNBinaryConvolutionLayer<Dtype>::Reshape(
   // planning strategy and a rewrite of Caffe's GPU memory mangagement
   size_t workspace_limit_bytes = 8*1024*1024;
 
-  const int* kernel_shape_data = this->kernel_shape_.cpu_data();
-  const int kernel_h = kernel_shape_data[0];
-  const int kernel_w = kernel_shape_data[1];
-  cudnn::setTensor4dDesc<Dtype>(&alfa_bottom_desc_,
-      this->num_output_, this->channels_, kernel_h, kernel_w,
-      this->channels_ * kernel_h * kernel_w,
-      kernel_h * kernel_w, kernel_w, 1);
-  cudnn::setTensor4dDesc<Dtype>(&alfa_top_desc_,
-      this->num_output_, 1, 1, 1, 1, 1, 1, 1);
-  cudnn::setConvolutionDesc<Dtype>(&alfa_conv_desc_, alfa_bottom_desc_,
-      alfa_filter_desc_, 0, 0, 1, 1);
-
-  *alfa_fwd_algo_ = CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM;
-
   for (int i = 0; i < bottom.size(); i++) {
     cudnn::setTensor4dDesc<Dtype>(&bottom_descs_[i],
         this->num_,
@@ -219,6 +205,20 @@ void CuDNNBinaryConvolutionLayer<Dtype>::Reshape(
           filter_desc_, top_descs_[i], conv_descs_[i], bottom_descs_[i],
           bwd_data_algo_[i], &workspace_bwd_data_sizes_[i]) );
   }
+
+  const int* kernel_shape_data = this->kernel_shape_.cpu_data();
+  const int kernel_h = kernel_shape_data[0];
+  const int kernel_w = kernel_shape_data[1];
+  cudnn::setTensor4dDesc<Dtype>(&alfa_bottom_desc_,
+      this->num_output_, this->channels_, kernel_h, kernel_w,
+      this->channels_ * kernel_h * kernel_w,
+      kernel_h * kernel_w, kernel_w, 1);
+  cudnn::setTensor4dDesc<Dtype>(&alfa_top_desc_,
+      this->num_output_, 1, 1, 1, 1, 1, 1, 1);
+  cudnn::setConvolutionDesc<Dtype>(&alfa_conv_desc_, alfa_bottom_desc_,
+      alfa_filter_desc_, 0, 0, 1, 1);
+
+  *alfa_fwd_algo_ = CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM;
 
   // reduce over all workspace sizes to get a maximum to allocate / reallocate
   size_t total_workspace_fwd = 0;
@@ -315,12 +315,12 @@ CuDNNBinaryConvolutionLayer<Dtype>::~CuDNNBinaryConvolutionLayer() {
   delete [] alfa_stream_;
   delete [] alfa_handle_;
   delete [] fwd_algo_;
+  delete [] alfa_fwd_algo_;
   delete [] bwd_filter_algo_;
   delete [] bwd_data_algo_;
   delete [] workspace_fwd_sizes_;
   delete [] workspace_bwd_data_sizes_;
   delete [] workspace_bwd_filter_sizes_;
-  delete [] alfa_fwd_algo_;
 }
 
 INSTANTIATE_CLASS(CuDNNBinaryConvolutionLayer);

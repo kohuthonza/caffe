@@ -547,8 +547,8 @@ message BiasParameter {
 }
 
 message BinaryConvolutionParameter {
-  optional bool gradient_update = 1 [default = true];
-  optional bool gradient_scale = 2 [default = true];
+  optional bool update_weight_diff = 1 [default = true];
+  optional bool scale_weight_diff = 2 [default = true];
 }
 
 message ContrastiveLossParameter {

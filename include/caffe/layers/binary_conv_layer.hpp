@@ -29,21 +29,22 @@ class BinaryConvolutionLayer : public BaseConvolutionLayer<Dtype> {
  protected:
   virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
-  virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom,
-      const vector<Blob<Dtype>*>& top);
   virtual void Backward_cpu(const vector<Blob<Dtype>*>& top,
-      const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
-  virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
   virtual inline bool reverse_dimensions() { return false; }
   virtual void compute_output_shape();
-  virtual void compute_binary_weight(const Dtype* weight, Dtype* binary_weight, vector<Dtype> kernel_alfa);
-  virtual void compute_binary_weight_diff(const Dtype* weight, Dtype* weight_diff, Dtype* binary_weight_diff, vector<Dtype> kernel_alfa);
-  virtual vector<Dtype> compute_kernel_alfa(const Dtype* weight);
+   virtual vector<Dtype> compute_alfa_kernel(const Dtype* weight);
+  virtual void compute_binary_weight(const Dtype* weight, Dtype* binary_weight, 
+                                     vector<Dtype> kernel_alfa);
+  virtual void update_weight_diff(const Dtype* weight, Dtype* weight_diff, 
+                                  Dtype* binary_weight_diff, 
+                                  vector<Dtype> kernel_alfa);
+  virtual void scale_weight_diff(Dtype* weight_diff);
   shared_ptr<Blob<Dtype> > binary_weight_;
   int kernel_size_;
-  bool gradient_update_;
-  bool gradient_scale_;
+  int weight_size_;
+  bool update_weight_diff_;
+  bool scale_weight_diff_;
 };
 
 }  // namespace caffe

@@ -23,66 +23,71 @@ void BinaryConvolutionLayer<Dtype>::compute_output_shape() {
 }
 
 template <typename Dtype>
-void BinaryConvolutionLayer<Dtype>::compute_binary_weight(const Dtype* weight, Dtype* binary_weight, vector<Dtype> kernel_alfa) {
-  for (int i = 0; i < this->num_output_; ++i){
-    for (int j = 0; j < this->kernel_size_; ++j){
-      binary_weight[i * this->kernel_size_ + j] = copysign(1.0, weight[i * this->kernel_size_ + j]) * kernel_alfa[i];
-    }
+void BinaryConvolutionLayer<Dtype>::compute_binary_weight(const Dtype* weight, 
+      Dtype* binary_weight, vector<Dtype> kernel_alfa) {
+  for (int i = 0; i < weight_size_; ++i){  
+    binary_weight[i] = copysign(1.0, weight[i]) * kernel_alfa[i / kernel_size_];
   }
 }
 
 template <typename Dtype>
-void BinaryConvolutionLayer<Dtype>::compute_binary_weight_diff(const Dtype* weight, Dtype* weight_diff, Dtype* binary_weight_diff, vector<Dtype> kernel_alfa) {
-  for (int i = 0; i < this->num_output_; ++i) {
-    for (int j = 0; j < this->kernel_size_; ++j) {
-      if (weight[i * this->kernel_size_ + j] < 1. && weight[i * this->kernel_size_ + j] > -1.) {
-        binary_weight_diff[i * this->kernel_size_ + j] = binary_weight_diff[i * this->kernel_size_ + j] * (kernel_alfa[i] + 1. / this->kernel_size_);
-      }
-      else {
-        binary_weight_diff[i * this->kernel_size_ + j] = binary_weight_diff[i * this->kernel_size_ + j] * (1. / this->kernel_size_);
-      }
-    }
-  }
-  for (int i = 0; i < this->blobs_[0]->count(); ++i) {
-    if (this->gradient_scale_) {
-      weight_diff[i] += binary_weight_diff[i] * this->kernel_size_;
-    }
-    else {
-      weight_diff[i] += binary_weight_diff[i];
-    }
-  }
-}
-
-template <typename Dtype>
-vector<Dtype> BinaryConvolutionLayer<Dtype>::compute_kernel_alfa(const Dtype* weight) {
+vector<Dtype> BinaryConvolutionLayer<Dtype>::compute_alfa_kernel(
+      const Dtype* weight) {
   vector<Dtype> kernel_alfa;
   for (int i = 0; i < this->num_output_; ++i) {
-    kernel_alfa.push_back(caffe_cpu_asum(this->kernel_size_, weight + i * this->kernel_size_) / this->kernel_size_);
+    kernel_alfa.push_back(caffe_cpu_asum(this->kernel_size_, weight + 
+                                         i * this->kernel_size_) / 
+                                         this->kernel_size_);
   }
   return kernel_alfa;
 }
 
 template <typename Dtype>
+void BinaryConvolutionLayer<Dtype>::update_weight_diff(const Dtype* weight, 
+      Dtype* weight_diff, Dtype* binary_weight_diff, vector<Dtype> kernel_alfa) {
+  for (int i = 0; i < weight_size_; ++i) {
+    if (weight[i] < 1. && weight[i] > -1.) {
+      weight_diff[i] += binary_weight_diff[i] * 
+                        (kernel_alfa[i / kernel_size_] + 1. / kernel_size_);
+    }
+    else {
+      weight_diff[i] += binary_weight_diff[i] * (1. / kernel_size_);
+    }
+  }
+}
+
+template <typename Dtype>
+void BinaryConvolutionLayer<Dtype>::scale_weight_diff(Dtype* weight_diff) {
+  for (int i = 0; i < weight_size_; ++i) {
+      weight_diff[i] *= kernel_size_;
+  }
+}
+
+
+template <typename Dtype>
 void BinaryConvolutionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
-        const vector<Blob<Dtype>*>& top){
+        const vector<Blob<Dtype>*>& top) {
   BaseConvolutionLayer<Dtype>::LayerSetUp(bottom, top);
   vector<int> kernel_blob_shape;
   kernel_blob_shape.push_back(this->blobs_[0]->shape(0));
   kernel_blob_shape.push_back(this->blobs_[0]->shape(1));
   kernel_blob_shape.push_back(this->blobs_[0]->shape(2));
   kernel_blob_shape.push_back(this->blobs_[0]->shape(3));
-  this->binary_weight_ = shared_ptr<Blob<Dtype> >(new Blob<Dtype>(kernel_blob_shape));
-  this->kernel_size_ = this->blobs_[0]->shape(1) * this->blobs_[0]->shape(2) * this->blobs_[0]->shape(3);
-  this->gradient_update_ = this->layer_param_.binary_convolution_param().gradient_update();
-  this->gradient_scale_ = this->layer_param_.binary_convolution_param().gradient_scale();
+  binary_weight_ = shared_ptr<Blob<Dtype> >(new Blob<Dtype>(kernel_blob_shape));
+  kernel_size_ = this->blobs_[0]->shape(1) * 
+                 this->blobs_[0]->shape(2) * 
+                 this->blobs_[0]->shape(3);
+  weight_size_ = this->blobs_[0]->count();
+  update_weight_diff_ = this->layer_param_.binary_convolution_param().update_weight_diff();
+  scale_weight_diff_ = this->layer_param_.binary_convolution_param().scale_weight_diff();
 }
 
 template <typename Dtype>
 void BinaryConvolutionLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
   const Dtype* weight = this->blobs_[0]->cpu_data();
-  Dtype* binary_weight = this->binary_weight_->mutable_cpu_data();
-  compute_binary_weight(weight, binary_weight, compute_kernel_alfa(weight));
+  Dtype* binary_weight = binary_weight_->mutable_cpu_data();
+  compute_binary_weight(weight, binary_weight, compute_alfa_kernel(weight));
   for (int i = 0; i < bottom.size(); ++i) {
     const Dtype* bottom_data = bottom[i]->cpu_data();
     Dtype* top_data = top[i]->mutable_cpu_data();
@@ -102,13 +107,13 @@ void BinaryConvolutionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
   const Dtype* weight = this->blobs_[0]->cpu_data();
   Dtype* weight_diff = this->blobs_[0]->mutable_cpu_diff();
-  Dtype* binary_weight = this->binary_weight_->mutable_cpu_data();
+  Dtype* binary_weight = binary_weight_->mutable_cpu_data();
   Dtype* binary_weight_diff = NULL;
-  vector<Dtype> kernel_alfa = compute_kernel_alfa(weight);
-  compute_binary_weight(weight, binary_weight, kernel_alfa);
-  if (this->gradient_update_) {
-    binary_weight_diff = this->binary_weight_->mutable_cpu_diff();
-    for (int i = 0; i < this->binary_weight_->count(); ++i) {
+  vector<Dtype> alfa_kernel = compute_alfa_kernel(weight);
+  compute_binary_weight(weight, binary_weight, alfa_kernel);
+  if (update_weight_diff_) {
+    binary_weight_diff = binary_weight_->mutable_cpu_diff();
+    for (int i = 0; i < binary_weight_->count(); ++i) {
       binary_weight_diff[i] = 0.;
     }
   }
@@ -127,7 +132,7 @@ void BinaryConvolutionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top
       for (int n = 0; n < this->num_; ++n) {
         // gradient w.r.t. weight. Note that we will accumulate diffs.
         if (this->param_propagate_down_[0]) {
-          if (this->gradient_update_) {
+          if (update_weight_diff_) {
             this->weight_cpu_gemm(bottom_data + n * this->bottom_dim_,
                 top_diff + n * this->top_dim_, binary_weight_diff);
           }
@@ -142,8 +147,11 @@ void BinaryConvolutionLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top
               bottom_diff + n * this->bottom_dim_);
         }
       }
-      if (this->gradient_update_) {
-        compute_binary_weight_diff(weight, weight_diff, binary_weight_diff, kernel_alfa);
+      if (update_weight_diff_) {
+        update_weight_diff(weight, weight_diff, binary_weight_diff, alfa_kernel);
+        if (scale_weight_diff_) {
+            scale_weight_diff(weight_diff);
+        }
       }
     }
   }

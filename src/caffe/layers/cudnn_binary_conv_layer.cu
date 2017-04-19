@@ -88,7 +88,7 @@ void CuDNNBinaryConvolutionLayer<Dtype>::Forward_gpu(
       CUDNN_CHECK(cudnnConvolutionForward(handle_[g],
             cudnn::dataType<Dtype>::one,
             bottom_descs_[i], bottom_data + bottom_offset_ * g,
-            filter_desc_, binary_weight + this->weight_offset_ * g,
+            filter_desc_, weight + this->weight_offset_ * g,
             conv_descs_[i],
             fwd_algo_[i], workspace[g], workspace_fwd_sizes_[i],
             cudnn::dataType<Dtype>::zero,

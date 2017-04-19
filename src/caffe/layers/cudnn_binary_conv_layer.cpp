@@ -76,7 +76,7 @@ void CuDNNBinaryConvolutionLayer<Dtype>::LayerSetUp(
       kernel_h, kernel_w);
 
   cudnn::createFilterDesc<Dtype>(&alfa_filter_desc_,
-      1, this->channels_, kernel_h, kernel_w);
+      1, this->channels_ / this->group_, kernel_h, kernel_w);
 
   // Create tensor descriptor(s) for data and corresponding convolution(s).
   for (int i = 0; i < bottom.size(); i++) {
@@ -210,8 +210,8 @@ void CuDNNBinaryConvolutionLayer<Dtype>::Reshape(
   const int kernel_h = kernel_shape_data[0];
   const int kernel_w = kernel_shape_data[1];
   cudnn::setTensor4dDesc<Dtype>(&alfa_bottom_desc_,
-      this->num_output_, this->channels_, kernel_h, kernel_w,
-      this->channels_ * kernel_h * kernel_w,
+      this->num_output_, this->channels_ / this->group_, kernel_h, kernel_w,
+      this->channels_ / this->group_ * kernel_h * kernel_w,
       kernel_h * kernel_w, kernel_w, 1);
   cudnn::setTensor4dDesc<Dtype>(&alfa_top_desc_,
       this->num_output_, 1, 1, 1, 1, 1, 1, 1);

@@ -111,50 +111,46 @@ def main():
 
     print("*********************************************")
 
+    print("Gradient test")
+    kernelSize = convolutionNet.params['convolution'][0].data.shape[1] * \
+                 convolutionNet.params['convolution'][0].data.shape[2] * \
+                 convolutionNet.params['convolution'][0].data.shape[3]
     if args.gradient_update:
-        print("Gradient test")
-        kernelSize = convolutionNet.params['convolution'][0].data.shape[1] * \
-                     convolutionNet.params['convolution'][0].data.shape[2] * \
-                     convolutionNet.params['convolution'][0].data.shape[3]
-
         for i in range(len(convolutionNet.params['convolution'][0].diff)):
             convolutionNet.params['convolution'][0].diff[i][np.logical_and(convolutionNet.params['convolution'][0].data[i] < 1.0,
-                                       convolutionNet.params['convolution'][0].data[i] > -1.0)] \
-                                       *= 1.0/kernelSize + alfas[i]
+                                   convolutionNet.params['convolution'][0].data[i] > -1.0)] \
+                                   *= 1.0/kernelSize + alfas[i]
             convolutionNet.params['convolution'][0].diff[i][np.logical_and(convolutionNet.params['convolution'][0].data[i] >= 1.0,
-                                       convolutionNet.params['convolution'][0].data[i] <= -1.0)] \
-                                       *= 1.0/kernelSize
+                                   convolutionNet.params['convolution'][0].data[i] <= -1.0)] \
+                                   *= 1.0/kernelSize
 
-        if args.gradient_scale:
-            for i in range(len(convolutionNet.params['convolution'][0].diff)):
-                convolutionNet.params['convolution'][0].diff[i] *= kernelSize
+    if args.gradient_scale:
+        for i in range(len(convolutionNet.params['convolution'][0].diff)):
+            convolutionNet.params['convolution'][0].diff[i] *= kernelSize
 
-        print("Output of convolution layer with binary weights:")
-        print convolutionNet.params['convolution'][0].diff
-        print("Output of binary convolution layer:")
-        print binaryConvolutionNet.params['binary_convolution'][0].diff
+    print("Output of convolution layer with binary weights:")
+    print convolutionNet.params['convolution'][0].diff
+    print("Output of binary convolution layer:")
+    print binaryConvolutionNet.params['binary_convolution'][0].diff
 
-        print("Difference of outputs:")
-        gradientDifference = convolutionNet.params['convolution'][0].diff - binaryConvolutionNet.params['binary_convolution'][0].diff
-        print gradientDifference
-        print("Mean of differences:")
-        gradientDifference = np.abs(gradientDifference).mean()
-        print gradientDifference
+    print("Difference of outputs:")
+    gradientDifference = convolutionNet.params['convolution'][0].diff - binaryConvolutionNet.params['binary_convolution'][0].diff
+    print gradientDifference
+    print("Mean of differences:")
+    gradientDifference = np.abs(gradientDifference).mean()
+    print gradientDifference
 
-        if np.abs(gradientDifference) < 0.000001:
-            print("Gradient test PASSED")
-            gradientTestPassed = True
-        else:
-            print("Gradient test FAILED")
-
-        print("*********************************************")
-    else:
+    if np.abs(gradientDifference) < 0.001:
+        print("Gradient test PASSED")
         gradientTestPassed = True
+    else:
+        print("Gradient test FAILED")
+    print("*********************************************")
+
 
     print("Forward test mean of differences: {}".format(forwardDifference))
     print("Backward test mean of differences: {}".format(backwardDifference))
-    if args.gradient_update:
-        print("Gradient test mean of differences: {}".format(gradientDifference))
+    print("Gradient test mean of differences: {}".format(gradientDifference))
 
     if forwardTestPassed and backwardTestPassed and gradientTestPassed:
         if args.cpu:

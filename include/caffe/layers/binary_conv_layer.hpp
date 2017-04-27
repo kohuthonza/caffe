@@ -36,10 +36,11 @@ class BinaryConvolutionLayer : public BaseConvolutionLayer<Dtype> {
    virtual vector<Dtype> compute_alfa_kernel(const Dtype* weight);
   virtual void compute_binary_weight(const Dtype* weight, Dtype* binary_weight, 
                                      vector<Dtype> kernel_alfa);
-  virtual void update_weight_diff(const Dtype* weight, Dtype* weight_diff, 
+  virtual void update_weight_diff(Dtype* weight_diff, Dtype* binary_weight_diff);
+  virtual void update_binary_weight_diff(const Dtype* weight, 
                                   Dtype* binary_weight_diff, 
                                   vector<Dtype> kernel_alfa);
-  virtual void scale_weight_diff(Dtype* weight_diff);
+  virtual void scale_binary_weight_diff(Dtype* binary_weight_diff);
   shared_ptr<Blob<Dtype> > binary_weight_;
   int kernel_size_;
   int weight_size_;

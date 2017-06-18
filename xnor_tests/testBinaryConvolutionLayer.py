@@ -7,17 +7,18 @@ import cv2
 def parse_args():
     print( ' '.join(sys.argv))
 
-    parser = argparse.ArgumentParser(epilog="Test binary convolution layer")
+    parser = argparse.ArgumentParser(epilog="Test binary convolution layer. \
+                            Error is absDifferenceOfOutputs/expectedOutput.")
 
     parser.add_argument('-c', '--cpu',
                         action='store_true',
-                        help='Set cpu mode (default gpu mode)')
+                        help='Set cpu mode (default gpu mode).')
     parser.add_argument('-u', '--gradient-update',
                         action='store_true',
-                        help='Apply gradient update on weight gradients (run gradient test)' )
+                        help='Apply gradient update on weight gradients.' )
     parser.add_argument('-s', '--gradient-scale',
                         action='store_true',
-                        help='Multiply weight gradients with kernel size')
+                        help='Multiply weight gradients with kernel size.')
     args = parser.parse_args()
 
     return args
@@ -50,7 +51,7 @@ def main():
     print("Forward test")
     print("Input data:")
 
-    randomInput = np.random.random_sample(convolutionNet.blobs['convolution_input'].data.shape) * 2 - 1
+    randomInput = np.random.random_sample(convolutionNet.blobs['convolution_input'].data.shape) - 0.5
     randomInput = np.array(randomInput, dtype=np.float32)
     print randomInput
 
@@ -68,16 +69,9 @@ def main():
     print("Difference of outputs:")
     forwardDifference = convolutionNet.blobs['convolution'].data - binaryConvolutionNet.blobs['binary_convolution'].data
     print forwardDifference
-    print("Mean of differences:")
-    forwardDifference = np.abs(forwardDifference).mean()
+    print("Error:")
+    forwardDifference = np.abs(forwardDifference).mean() / np.abs(convolutionNet.blobs['convolution'].data).mean()
     print forwardDifference
-
-    if np.abs(forwardDifference) < 0.000001:
-        print("Forward test PASSED")
-        forwardTestPassed = True
-    else:
-        print("Forward test FAILED")
-
     print("*********************************************")
 
     print("Backward test")
@@ -99,16 +93,9 @@ def main():
     print("Difference of outputs:")
     backwardDifference = convolutionNet.blobs['convolution_input'].diff - binaryConvolutionNet.blobs['binary_convolution_input'].diff
     print backwardDifference
-    print("Mean of differences:")
-    backwardDifference = np.abs(backwardDifference).mean()
+    print("Error:")
+    backwardDifference = np.abs(backwardDifference).mean() / np.abs(convolutionNet.blobs['convolution_input'].diff).mean()
     print backwardDifference
-
-    if np.abs(backwardDifference) < 0.000001:
-        print("Backward test PASSED")
-        backwardTestPassed = True
-    else:
-        print("Backward test FAILED")
-
     print("*********************************************")
 
     print("Gradient test")
@@ -136,32 +123,15 @@ def main():
     print("Difference of outputs:")
     gradientDifference = convolutionNet.params['convolution'][0].diff - binaryConvolutionNet.params['binary_convolution'][0].diff
     print gradientDifference
-    print("Mean of differences:")
-    gradientDifference = np.abs(gradientDifference).mean()
+    print("Error:")
+    gradientDifference = np.abs(gradientDifference).mean() / np.abs(convolutionNet.params['convolution'][0].diff).mean()
     print gradientDifference
-
-    if np.abs(gradientDifference) < 0.001:
-        print("Gradient test PASSED")
-        gradientTestPassed = True
-    else:
-        print("Gradient test FAILED")
     print("*********************************************")
 
 
-    print("Forward test mean of differences: {}".format(forwardDifference))
-    print("Backward test mean of differences: {}".format(backwardDifference))
-    print("Gradient test mean of differences: {}".format(gradientDifference))
-
-    if forwardTestPassed and backwardTestPassed and gradientTestPassed:
-        if args.cpu:
-            print("Test of CPU binary convolution layer PASSED")
-        else:
-            print("Test of GPU binary convolution layer PASSED")
-    else:
-        if args.cpu:
-            print("Test of CPU binary convolution layer FAILED")
-        else:
-            print("Test of GPU binary convolution layer FAILED")
+    print("Forward test error: {}".format(forwardDifference))
+    print("Backward test error: {}".format(backwardDifference))
+    print("Gradient test error: {}".format(gradientDifference))
 
 
 if __name__ == "__main__":

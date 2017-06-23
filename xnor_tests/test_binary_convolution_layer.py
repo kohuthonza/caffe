@@ -210,14 +210,14 @@ def createConvolutionsNet(params, update, scale):
         stride = int(convParams[2])
         pad = int(convParams[3])
     else:
-        kernelNumber = random.randint(1, 128)
-        kernelSize = random.randint(1, 32)
-        stride = random.randint(1, 32)
+        kernelNumber = random.randint(1, 256)
+        kernelSize = random.randint(1, 5)
+        stride = random.randint(1, 5)
         pad = random.randint(0, kernelSize - 1)
 
         channels = random.randint(1, 128)
-        height = random.randint(1, 128)
-        width = random.randint(1, 128)
+        height = random.randint(1, 256)
+        width = random.randint(1, 256)
         # Adjust input to exactly fit conv params
         height = adjustDimension(height, kernelSize, stride, pad)
         width = adjustDimension(width, kernelSize, stride, pad)

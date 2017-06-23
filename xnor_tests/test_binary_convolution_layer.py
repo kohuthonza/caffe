@@ -135,8 +135,6 @@ def testBinaryConvolutionLayer(net, deploy, args):
     kernelSize = net.params['convolution'][0].data.shape[1] * \
                  net.params['convolution'][0].data.shape[2] * \
                  net.params['convolution'][0].data.shape[3]
-    stdOut.write("Weights:\n")
-    stdOut.write("{}\n".format(net.params['convolution']))
     if args.update_weight_diff:
         for i in range(len(net.params['convolution'][0].diff)):
             cond = np.logical_and(net.params['binary_convolution'][0].data[i] < 1.0,

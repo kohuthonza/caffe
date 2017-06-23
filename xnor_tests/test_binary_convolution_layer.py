@@ -96,15 +96,13 @@ def testBinaryConvolutionLayer(net, deploy, args):
 
     randomWeights = np.random.random_sample(net.params['convolution'][0].data.shape) * 3.0 - 1.5
     randomBiases = np.random.random_sample(net.params['convolution'][1].data.shape) * 0.25 - 0.25
-    net.params['convolution'][0].data[...] = randomWeights
+    ones = np.ones(randomWeights[0].shape)
+    alfas = np.abs(randomWeights).mean(axis=(1,2,3))
+    for i, alfa in enumerate(alfas):
+        net.params['convolution'][0].data[i] = np.copysign(ones, randomWeights[i]) * alfa
     net.params['binary_convolution'][0].data[...] = randomWeights
     net.params['convolution'][1].data[...] = randomBiases
     net.params['binary_convolution'][1].data[...] = randomBiases
-    ones = np.ones(net.params['convolution'][0].data[0].shape)
-    alfas = np.abs(net.params['convolution'][0].data).mean(axis=(1,2,3))
-    for i, alfa in enumerate(alfas):
-        net.params['convolution'][0].data[i] = np.copysign(ones, net.params['convolution'][0].data[i]) * alfa
-
 
     stdOut.write("\n#############################################################\n")
     stdOut.write("Forward test\n")

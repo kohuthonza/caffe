@@ -1,52 +1,47 @@
 #ifdef USE_CUDNN
-#include <cmath>
-#include <vector>
-
 #include "caffe/layers/cudnn_binary_conv_layer.hpp"
-
-#include <iostream>
-using namespace std;
 
 namespace caffe {
 
 __global__ void sync_binary_conv_groups() { }
 
 template <typename Dtype>
-__global__ void compute_binary_weight(const int n, const Dtype* weight,
-               Dtype* binary_weight, const Dtype* alfa_kernel, const int kernel_size) {
-  CUDA_KERNEL_LOOP(index, n) {
-    binary_weight[index] = copysign(1.0, weight[index]) * alfa_kernel[index / kernel_size];
+__global__ void compute_binary_weight(Dtype* binary_weight, const Dtype* weight,
+              const Dtype* alfa_kernel, const int weight_size,
+              const int kernel_weight_size) {
+  CUDA_KERNEL_LOOP(index, weight_size) {
+    binary_weight[index] = copysign(1.0, weight[index]) * alfa_kernel[index / kernel_weight_size];
   }
 }
 
 template <typename Dtype>
-__global__ void update_weight_diff(const int n, Dtype* weight_diff,
-              Dtype* binary_weight_diff) {
-  CUDA_KERNEL_LOOP(index, n) {
+__global__ void update_weight_diff(Dtype* weight_diff, Dtype* binary_weight_diff,
+              const int weight_size) {
+  CUDA_KERNEL_LOOP(index, weight_size) {
     weight_diff[index] += binary_weight_diff[index];
   }
 }
 
 template <typename Dtype>
-__global__ void update_binary_weight_diff(const int n, const Dtype* weight,
-              Dtype* binary_weight_diff, const Dtype* alfa_kernel,
-              const int kernel_size) {
-  CUDA_KERNEL_LOOP(index, n) {
-    if (weight[index] < 1. && weight[index] > -1.) {
-      binary_weight_diff[index] *= (alfa_kernel[index / kernel_size]
-                                    + 1./kernel_size);
+__global__ void update_binary_weight_diff(Dtype* binary_weight_diff,
+              const Dtype* weight, const Dtype* alfa_kernel,
+              const int weight_size, const int kernel_weight_size) {
+  CUDA_KERNEL_LOOP(index, weight_size) {
+    if (weight[index] > -1. && weight[index] < 1.) {
+      binary_weight_diff[index] *= alfa_kernel[index / kernel_weight_size]
+                                   + 1./kernel_weight_size;
     }
     else {
-      binary_weight_diff[index] *= 1./kernel_size;
+      binary_weight_diff[index] *= 1./kernel_weight_size;
     }
   }
 }
 
 template <typename Dtype>
-__global__ void scale_binary_weight_diff(const int n, Dtype* binary_weight_diff,
-              const int kernel_size) {
-  CUDA_KERNEL_LOOP(index, n) {
-    binary_weight_diff[index] *= kernel_size;
+__global__ void scale_binary_weight_diff(Dtype* binary_weight_diff,
+              const int weight_size, const int kernel_weight_size) {
+  CUDA_KERNEL_LOOP(index, weight_size) {
+    binary_weight_diff[index] *= kernel_weight_size;
   }
 }
 
@@ -74,6 +69,7 @@ void CuDNNBinaryConvolutionLayer<Dtype>::Forward_gpu(
                    (this->weight_size_, weight, abs_weight);
   const Dtype* alfa_kernel_multiplier = alfa_kernel_multiplier_->gpu_data();
   Dtype* alfa_kernel = alfa_kernel_->mutable_gpu_data();
+  // Compute alfa with convolution
   CUDNN_CHECK(cudnnConvolutionForward(*alfa_handle_,
         cudnn::dataType<Dtype>::one,
         alfa_bottom_desc_, abs_weight,
@@ -85,8 +81,9 @@ void CuDNNBinaryConvolutionLayer<Dtype>::Forward_gpu(
   Dtype* binary_weight = this->binary_weight_->mutable_gpu_data();
   compute_binary_weight<<<CAFFE_GET_BLOCKS(this->weight_size_),
                                      CAFFE_CUDA_NUM_THREADS>>>
-                                     (this->weight_size_, weight, binary_weight,
-                                     alfa_kernel, this->kernel_size_);
+                                     (binary_weight, weight, alfa_kernel,
+                                      this->weight_size_,
+                                      this->kernel_weight_size_);
   for (int i = 0; i < bottom.size(); ++i) {
     const Dtype* bottom_data = bottom[i]->gpu_data();
     Dtype* top_data = top[i]->mutable_gpu_data();
@@ -124,8 +121,8 @@ void CuDNNBinaryConvolutionLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>
     const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {
   const Dtype* weight = NULL;
   Dtype* abs_weight = NULL;
-  Dtype* weight_diff = NULL;
   Dtype* binary_weight = NULL;
+  Dtype* weight_diff = NULL;
   Dtype* binary_weight_diff = NULL;
   Dtype* alfa_kernel = NULL;
   const Dtype* alfa_kernel_multiplier = NULL;
@@ -154,8 +151,9 @@ void CuDNNBinaryConvolutionLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>
       binary_weight = this->binary_weight_->mutable_gpu_data();
       compute_binary_weight<<<CAFFE_GET_BLOCKS(this->weight_size_),
                                          CAFFE_CUDA_NUM_THREADS>>>
-                                         (this->weight_size_, weight, binary_weight,
-                                          alfa_kernel, this->kernel_size_);
+                                         (binary_weight, weight, alfa_kernel,
+                                          this->weight_size_,
+                                          this->kernel_weight_size_);
       break;
     }
   }
@@ -215,7 +213,6 @@ void CuDNNBinaryConvolutionLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>
         }
       }
 
-
       // Gradient w.r.t. bottom data.
       if (propagate_down[i]) {
         Dtype* bottom_diff = bottom[i]->mutable_gpu_diff();
@@ -241,19 +238,17 @@ void CuDNNBinaryConvolutionLayer<Dtype>::Backward_gpu(const vector<Blob<Dtype>*>
     if (this->update_weight_diff_) {
       update_binary_weight_diff<<<CAFFE_GET_BLOCKS(this->blobs_[0]->count()),
                                   CAFFE_CUDA_NUM_THREADS>>>
-                                  (this->weight_size_, weight,
-                                   binary_weight_diff, alfa_kernel,
-                                   this->kernel_size_);
-      if (this->scale_weight_diff_ && this->param_propagate_down_[0]) {
+                                  (binary_weight_diff, weight, alfa_kernel,
+                                   this->weight_size_, this->kernel_weight_size_);
+      if (this->scale_weight_diff_) {
         scale_binary_weight_diff<<<CAFFE_GET_BLOCKS(this->blobs_[0]->count()),
                                    CAFFE_CUDA_NUM_THREADS>>>
-                                   (this->weight_size_, binary_weight_diff,
-                                    this->kernel_size_);
+                                   (binary_weight_diff, this->weight_size_,
+                                    this->kernel_weight_size_);
       }
       update_weight_diff<<<CAFFE_GET_BLOCKS(this->blobs_[0]->count()),
                            CAFFE_CUDA_NUM_THREADS>>>
-                           (this->weight_size_, weight_diff,
-                            binary_weight_diff);
+                           (weight_diff, binary_weight_diff, this->weight_size_);
     }
   }
 }

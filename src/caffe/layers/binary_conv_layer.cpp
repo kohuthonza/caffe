@@ -147,7 +147,7 @@ template <typename Dtype>
 void BinaryConvolutionLayer<Dtype>::update_binary_weight_diff(
       Dtype* binary_weight_diff, const Dtype* weight, vector<Dtype> alfa_kernel) {
   for (int i = 0; i < weight_size_; ++i) {
-    if (weight[i] < 1. && weight[i] > -1.) {
+    if (weight[i] > -1. && weight[i] < 1.) {
       binary_weight_diff[i] *=  alfa_kernel[i / kernel_weight_size_] +
                                 1. / kernel_weight_size_;
     }

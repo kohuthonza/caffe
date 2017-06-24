@@ -28,8 +28,6 @@ class BinaryConvolutionLayer : public BaseConvolutionLayer<Dtype> {
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom);
   virtual inline bool reverse_dimensions() { return false; }
   virtual void compute_output_shape();
-
- private:
   virtual vector<Dtype> compute_alfa_kernel(const Dtype* weight);
   virtual void compute_binary_weight(Dtype* binary_weight, const Dtype* weight,
                                      vector<Dtype> alfa_kernel);

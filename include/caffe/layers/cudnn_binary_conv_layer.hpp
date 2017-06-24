@@ -2,11 +2,12 @@
 #define CAFFE_CUDNN_BINARY_CONV_LAYER_HPP_
 
 #include <vector>
+#include <algorithm>
+#include <cmath>
 
 #include "caffe/blob.hpp"
 #include "caffe/layer.hpp"
 #include "caffe/proto/caffe.pb.h"
-
 #include "caffe/layers/binary_conv_layer.hpp"
 
 namespace caffe {

@@ -1,7 +1,4 @@
 #ifdef USE_CUDNN
-#include <algorithm>
-#include <vector>
-
 #include "caffe/layers/cudnn_binary_conv_layer.hpp"
 
 namespace caffe {
@@ -102,26 +99,19 @@ void CuDNNBinaryConvolutionLayer<Dtype>::LayerSetUp(
 
   handles_setup_ = true;
 
-  vector<int> blob_shape;
-  blob_shape.push_back(this->blobs_[0]->shape(0));
-  blob_shape.push_back(this->blobs_[0]->shape(1));
-  blob_shape.push_back(this->blobs_[0]->shape(2));
-  blob_shape.push_back(this->blobs_[0]->shape(3));
-  abs_weight_ = shared_ptr<Blob<Dtype> >(new Blob<Dtype>(blob_shape));
-
-  blob_shape.clear();
-
-  blob_shape.push_back(1);
-  blob_shape.push_back(this->blobs_[0]->shape(1));
-  blob_shape.push_back(this->blobs_[0]->shape(2));
-  blob_shape.push_back(this->blobs_[0]->shape(3));
-  alfa_kernel_multiplier_ = shared_ptr<Blob<Dtype> >(new Blob<Dtype>(blob_shape));
-  Dtype* alfa_kernel_multiplier_data = alfa_kernel_multiplier_->mutable_cpu_data();
-  for (int i = 0; i < alfa_kernel_multiplier_->count(); ++i){
-    alfa_kernel_multiplier_data[i] = 1./this->kernel_size_;
-  }
-
+  const vector<int> weight_shape = this->blobs_[0]->shape();
+  vector<int> kernel_shape;
+  kernel_shape.push_back(1);
+  kernel_shape.push_back(weight_shape[1]);
+  kernel_shape.push_back(weight_shape[2]);
+  kernel_shape.push_back(weight_shape[3]);
+  abs_weight_ = shared_ptr<Blob<Dtype> >(new Blob<Dtype>(weight_shape));
   alfa_kernel_ = shared_ptr<Blob<Dtype> >(new Blob<Dtype>(this->blobs_[0]->shape(0), 1, 1, 1));
+  alfa_kernel_multiplier_ = shared_ptr<Blob<Dtype> >(new Blob<Dtype>(kernel_shape));
+  Dtype* alfa_kernel_multiplier = alfa_kernel_multiplier_->mutable_cpu_data();
+  std::fill(alfa_kernel_multiplier,
+            alfa_kernel_multiplier + alfa_kernel_multiplier_->count(),
+            1./this->kernel_weight_size_);
 
 }
 

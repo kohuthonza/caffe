@@ -1,6 +1,3 @@
-#include <cmath>
-#include <vector>
-
 #include "caffe/layers/signum_layer.hpp"
 
 namespace caffe {

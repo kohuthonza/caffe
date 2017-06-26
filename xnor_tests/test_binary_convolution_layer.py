@@ -2,7 +2,6 @@ import os
 import numpy as np
 import sys
 import argparse
-import cv2
 import tempfile
 import random
 from google.protobuf.text_format import Merge
@@ -12,9 +11,9 @@ def parse_args():
     print( ' '.join(sys.argv))
 
     parser = argparse.ArgumentParser(epilog="Test binary convolution layer. \
-                             Error is absDifferenceOfOutputs/expectedOutput.")
+            Error is mean(abs(DifferenceOfOutputs))/mean(abs(ExpectedOutput)).")
 
-    parser.add_argument('-nt', '--tests-number',
+    parser.add_argument('-tn', '--tests-number',
                         type=int,
                         default=1,
                         help="Number of tests (default 1)")
@@ -68,7 +67,7 @@ def main():
         tmpNetProto.flush()
         net = caffe.Net(tmpNetProto.name, caffe.TEST)
         deploy = caffe_pb2.NetParameter()
-        Merge((open(tmpNetProto.name,'r').read()), deploy)
+        Merge((open(tmpNetProto.name, 'r').read()), deploy)
         tmpNetProto.close()
         sys.stdout.write("{}. ".format(i + 1))
         if not args.verbose:
@@ -199,11 +198,11 @@ def createConvolutionsNet(params, update, scale):
     import caffe
     if params is not None:
         params = params.split()
-        inputParams = params[2].split(',')
+        inputParams = params[2].split(",")
         height = int(inputParams[0])
         width = int(inputParams[1])
         channels = int(inputParams[2])
-        convParams = params[5].split(',')
+        convParams = params[5].split(",")
         kernelNumber = int(convParams[0])
         kernelSize = int(convParams[1])
         stride = int(convParams[2])

@@ -1,7 +1,6 @@
 import numpy as np
 import sys
 import argparse
-import cv2
 import os
 import tempfile
 import random
@@ -10,9 +9,9 @@ def parse_args():
     print( ' '.join(sys.argv))
 
     parser = argparse.ArgumentParser(epilog="Test signum layer. \
-                             Error is absDifferenceOfOutputs/expectedOutput.")
+            Error is mean(abs(DifferenceOfOutputs))/mean(abs(ExpectedOutput)).")
 
-    parser.add_argument('-nt', '--tests-number',
+    parser.add_argument('-tn', '--tests-number',
                         type=int,
                         default=1,
                         help="Number of tests (default 1)")
@@ -144,7 +143,7 @@ def createSignumNet(params):
     import caffe
     if params is not None:
         params = params.split()
-        inputParams = params[2].split(',')
+        inputParams = params[2].split(",")
         height = int(inputParams[0])
         width = int(inputParams[1])
         channels = int(inputParams[2])

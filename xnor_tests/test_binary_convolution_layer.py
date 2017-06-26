@@ -14,7 +14,7 @@ def parse_args():
     parser = argparse.ArgumentParser(epilog="Test binary convolution layer. \
                              Error is absDifferenceOfOutputs/expectedOutput.")
 
-    parser.add_argument('-n', '--tests-number',
+    parser.add_argument('-nt', '--tests-number',
                         type=int,
                         default=1,
                         help="Number of tests (default 1)")
@@ -71,6 +71,18 @@ def main():
         Merge((open(tmpNetProto.name,'r').read()), deploy)
         tmpNetProto.close()
         sys.stdout.write("{}. ".format(i + 1))
+        if not args.verbose:
+            sys.stdout.write("Input shape: {},{},{} ".format(net.blobs['convolution_input'].data.shape[2],
+                                                             net.blobs['convolution_input'].data.shape[3],
+                                                             net.blobs['convolution_input'].data.shape[1]))
+            convParams = deploy.layer[2].convolution_param
+            sys.stdout.write("Conv params: {},{},{},{} ".format(convParams.num_output,
+                                                                convParams.kernel_size[0],
+                                                                convParams.stride[0],
+                                                                convParams.pad[0]))
+            sys.stdout.write("Output shape: {},{},{}\n".format(net.blobs['convolution'].data.shape[2],
+                                                               net.blobs['convolution'].data.shape[3],
+                                                               net.blobs['convolution'].data.shape[1]))
         forwardError, diffError, weightDiffError = testBinaryConvolutionLayer(net, deploy, args)
         forwardErrorSum += forwardError
         diffErrorSum += diffError
@@ -155,17 +167,6 @@ def testBinaryConvolutionLayer(net, deploy, args):
     stdOut.write("#############################################################\n")
 
     if not args.verbose:
-        sys.stdout.write("Input shape: {},{},{} ".format(net.blobs['convolution_input'].data.shape[2],
-                                                         net.blobs['convolution_input'].data.shape[3],
-                                                         net.blobs['convolution_input'].data.shape[1]))
-        convParams = deploy.layer[2].convolution_param
-        sys.stdout.write("Conv params: {},{},{},{} ".format(convParams.num_output,
-                                                            convParams.kernel_size[0],
-                                                            convParams.stride[0],
-                                                            convParams.pad[0]))
-        sys.stdout.write("Output shape: {},{},{}\n".format(net.blobs['convolution'].data.shape[2],
-                                                           net.blobs['convolution'].data.shape[3],
-                                                           net.blobs['convolution'].data.shape[1]))
         sys.stdout.write("Forward error: {} | ".format(forwardError))
         sys.stdout.write("Diff error: {} | ".format(diffError))
         sys.stdout.write("Weight diff error: {}\n".format(weightDiffError))

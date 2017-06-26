@@ -12,7 +12,7 @@ def parse_args():
     parser = argparse.ArgumentParser(epilog="Test signum layer. \
                              Error is absDifferenceOfOutputs/expectedOutput.")
 
-    parser.add_argument('-n', '--tests-number',
+    parser.add_argument('-nt', '--tests-number',
                         type=int,
                         default=1,
                         help="Number of tests (default 1)")
@@ -59,6 +59,10 @@ def main():
         net = caffe.Net(tmpNetProto.name, caffe.TEST)
         tmpNetProto.close()
         sys.stdout.write("{}. ".format(i + 1))
+        if not args.verbose:
+            sys.stdout.write("Input shape: {},{},{}\n".format(net.blobs['input'].data.shape[2],
+                                                             net.blobs['input'].data.shape[3],
+                                                             net.blobs['input'].data.shape[1]))
         forwardError, diffError = testSignumLayer(net, args)
         forwardErrorSum += forwardError
         diffErrorSum += diffError
@@ -109,9 +113,6 @@ def testSignumLayer(net, args):
     stdOut.write("#############################################################\n")
 
     if not args.verbose:
-        sys.stdout.write("Input shape: {},{},{}\n".format(net.blobs['input'].data.shape[2],
-                                                         net.blobs['input'].data.shape[3],
-                                                         net.blobs['input'].data.shape[1]))
         sys.stdout.write("Forward error: {} | ".format(forwardError))
         sys.stdout.write("Diff error: {}\n".format(diffError))
 

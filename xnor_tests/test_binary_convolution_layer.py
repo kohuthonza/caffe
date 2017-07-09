@@ -106,11 +106,12 @@ def testBinaryConvolutionLayer(net, deploy, args):
         stdOut = open(os.devnull, 'w')
 
     randomWeights = np.random.random_sample(net.params['convolution'][0].data.shape) * 3.0 - 1.5
-    randomBiases = np.random.random_sample(net.params['convolution'][1].data.shape) * 0.25 - 0.25
+    randomBiases = np.random.random_sample(net.params['convolution'][1].data.shape) * 0.25 - 0.125
     ones = np.ones(randomWeights[0].shape)
-    alfas = np.abs(randomWeights).mean(axis=(1,2,3))
-    for i, alfa in enumerate(alfas):
-        net.params['convolution'][0].data[i] = np.copysign(ones, randomWeights[i]) * alfa
+    randomBinaryWeights = np.copy(randomWeights)
+    randomBinaryWeights[randomBinaryWeights > 0.0] = 1.0
+    randomBinaryWeights[randomBinaryWeights <= 0.0] = -1.0
+    net.params['convolution'][0].data[...] = randomBinaryWeights
     net.params['binary_convolution'][0].data[...] = randomWeights
     net.params['convolution'][1].data[...] = randomBiases
     net.params['binary_convolution'][1].data[...] = randomBiases
@@ -118,23 +119,32 @@ def testBinaryConvolutionLayer(net, deploy, args):
     stdOut.write("\n#############################################################\n")
     stdOut.write("Forward test\n")
     stdOut.write("Input data:\n")
-    randomData = np.random.random_sample(net.blobs['convolution_input'].data.shape) - 0.5
+    randomData = np.random.random_sample(net.blobs['convolution_input'].data.shape) * 3.0 - 1.5
     randomData = np.array(randomData, dtype=np.float32)
     stdOut.write("{}\n".format(randomData))
     net.blobs['convolution_input'].data[...] = randomData
     net.blobs['binary_convolution_input'].data[...] = randomData
     net.forward()
-    forwardError = computeError(net.blobs['convolution'].data,
+    convolutionOutput = np.copy(net.blobs['convolution'].data)
+    alfas = np.abs(randomWeights).mean(axis=(1,2,3))
+    for batchIndex in range(len(convolutionOutput)):
+        for i, alfa in enumerate(alfas):
+            convolutionOutput[batchIndex][i] *= alfa
+    forwardError = computeError(convolutionOutput,
                                 net.blobs['binary_convolution'].data,
                                 args)
 
     stdOut.write("\n#############################################################\n")
     stdOut.write("Diff test\n")
     stdOut.write("Input diff:\n")
-    randomDiff = np.random.random_sample(net.blobs['convolution'].diff.shape) - 0.5
+    randomDiff = np.random.random_sample(net.blobs['convolution'].diff.shape) * 3.0 - 1.5
     randomDiff = np.array(randomDiff, dtype=np.float32)
     stdOut.write("{}\n".format(randomDiff))
-    net.blobs['convolution'].diff[...] = randomDiff
+    randomBinaryDiff = np.copy(randomDiff)
+    for batchIndex in range(len(randomBinaryDiff)):
+        for i, alfa in enumerate(alfas):
+            randomBinaryDiff[batchIndex][i] *= alfa
+    net.blobs['convolution'].diff[...] = randomBinaryDiff
     net.blobs['binary_convolution'].diff[...] = randomDiff
     net.backward()
     diffError = computeError(net.blobs['convolution_input'].diff,
@@ -143,6 +153,10 @@ def testBinaryConvolutionLayer(net, deploy, args):
 
     stdOut.write("\n#############################################################\n")
     stdOut.write("Weight diff test\n")
+    net.blobs['convolution'].diff[...] = randomDiff
+    net.params['convolution'][0].diff[...] = 0.0
+    net.params['binary_convolution'][0].diff[...] = 0.0
+    net.backward()
     kernelSize = net.params['convolution'][0].data.shape[1] * \
                  net.params['convolution'][0].data.shape[2] * \
                  net.params['convolution'][0].data.shape[3]
@@ -219,10 +233,11 @@ def createConvolutionsNet(params, update, scale):
         # Adjust input to exactly fit conv params
         height = adjustDimension(height, kernelSize, stride, pad)
         width = adjustDimension(width, kernelSize, stride, pad)
+    batch = random.randint(1, 10)
 
     net = caffe.NetSpec()
-    net.convolution_input = caffe.layers.Input(shape=dict(dim=[1, channels, height, width]))
-    net.binary_convolution_input = caffe.layers.Input(shape=dict(dim=[1, channels, height, width]))
+    net.convolution_input = caffe.layers.Input(shape=dict(dim=[batch, channels, height, width]))
+    net.binary_convolution_input = caffe.layers.Input(shape=dict(dim=[batch, channels, height, width]))
     net.convolution = caffe.layers.Convolution(net.convolution_input,
                                                num_output=kernelNumber,
                                                kernel_size=kernelSize,

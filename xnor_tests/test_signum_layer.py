@@ -89,8 +89,9 @@ def testSignumLayer(net, args):
     stdOut.write("{}\n".format(randomData))
     net.blobs['input'].data[...] = randomData
     net.forward()
-    ones = np.ones(net.blobs['input'].data.shape)
-    npOut = np.copysign(ones, net.blobs['input'].data)
+    npOut = np.copy(randomData)
+    npOut[npOut > 0.0] = 1.0
+    npOut[npOut <= 0.0] = -1.0
     forwardError = computeError(npOut, net.blobs['signum'].data, args)
 
     stdOut.write("\n#############################################################\n")
@@ -151,9 +152,10 @@ def createSignumNet(params):
         channels = random.randint(1, 128)
         height = random.randint(1, 128)
         width = random.randint(1, 128)
+    batch = random.randint(1, 10)
 
     net = caffe.NetSpec()
-    net.input = caffe.layers.Input(shape=dict(dim=[1, channels, height, width]))
+    net.input = caffe.layers.Input(shape=dict(dim=[batch, channels, height, width]))
     net.signum = caffe.layers.Signum(net.input)
 
     return "force_backward: true\n" + str(net.to_proto())

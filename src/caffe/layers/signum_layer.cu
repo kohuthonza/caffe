@@ -5,7 +5,14 @@ namespace caffe {
 template <typename Dtype>
 __global__ void SignumForward(const int n, const Dtype* in, Dtype* out) {
   CUDA_KERNEL_LOOP(index, n) {
-    out[index] = copysign(1.0, in[index]);
+    if (in[index] > 0.0)
+    {
+      out[index] = 1.0;
+    }
+    else
+    {
+      out[index] = -1.0;
+    }
   }
 }
 
